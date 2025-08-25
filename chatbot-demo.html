@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スマイちゃん - スマイディアAIアシスタント</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .chat-container {
+            height: 500px;
+            overflow-y: auto;
+        }
+        .message {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .typing-indicator {
+            display: inline-block;
+        }
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: #999;
+            border-radius: 50%;
+            margin: 0 2px;
+            animation: typing 1.4s infinite;
+        }
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-10px);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="max-w-4xl mx-auto p-4">
+        <!-- ヘッダー -->
+        <div class="bg-white rounded-t-lg shadow-lg p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800">
+                        🤖 スマイちゃん <span class="text-sm text-gray-500">- スマイディアAIアシスタント</span>
+                    </h1>
+                    <p class="text-sm text-gray-600 mt-1">24時間いつでも印刷のご相談をお受けします！</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs text-green-600 font-semibold">● オンライン</p>
+                    <p class="text-xs text-gray-500">対応時間: 24時間365日</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- チャット画面 -->
+        <div class="bg-white shadow-lg p-6">
+            <div class="chat-container border rounded-lg p-4 bg-gray-50 mb-4" id="chatContainer">
+                <!-- 初期メッセージ -->
+                <div class="message mb-4">
+                    <div class="flex items-start">
+                        <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+                            ス
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-xs text-gray-500 mb-1">スマイちゃん</p>
+                            <div class="bg-blue-100 rounded-lg p-3 inline-block">
+                                <p class="text-sm">こんにちは！スマイディアのAIアシスタント「スマイちゃん」です。😊</p>
+                                <p class="text-sm mt-2">印刷のことなら何でもお聞きください！</p>
+                                <p class="text-sm mt-2">例えば：</p>
+                                <ul class="text-sm mt-1 ml-4">
+                                    <li>• 名刺を作りたい</li>
+                                    <li>• チラシの見積もりが欲しい</li>
+                                    <li>• 急ぎで印刷したい</li>
+                                    <li>• デザインの相談をしたい</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 入力エリア -->
+            <div class="flex space-x-2">
+                <input 
+                    type="text" 
+                    id="userInput"
+                    class="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="メッセージを入力..."
+                    onkeypress="if(event.key === 'Enter') sendMessage()"
+                >
+                <button 
+                    onclick="sendMessage()"
+                    class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                    送信
+                </button>
+            </div>
+
+            <!-- クイックアクション -->
+            <div class="mt-4">
+                <p class="text-xs text-gray-500 mb-2">よくあるご質問：</p>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="quickAction('名刺を100枚作りたい')" class="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded-full transition-colors">
+                        名刺100枚
+                    </button>
+                    <button onclick="quickAction('A4チラシの料金を知りたい')" class="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded-full transition-colors">
+                        A4チラシ料金
+                    </button>
+                    <button onclick="quickAction('明日までに印刷できますか？')" class="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded-full transition-colors">
+                        即日印刷
+                    </button>
+                    <button onclick="quickAction('デザインもお願いできますか？')" class="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded-full transition-colors">
+                        デザイン相談
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- プリントパック比較 -->
+        <div class="bg-white rounded-b-lg shadow-lg p-6">
+            <h3 class="font-bold text-gray-800 mb-3">💡 スマイディアの強み（プリントパック比較）</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div class="bg-green-50 p-3 rounded-lg">
+                    <p class="font-semibold text-green-800">🏃 即日対応可能</p>
+                    <p class="text-xs text-gray-600 mt-1">草津市内なら当日お届けも！</p>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-lg">
+                    <p class="font-semibold text-blue-800">👥 対面相談OK</p>
+                    <p class="text-xs text-gray-600 mt-1">色や仕上がりを直接確認</p>
+                </div>
+                <div class="bg-purple-50 p-3 rounded-lg">
+                    <p class="font-semibold text-purple-800">🎨 デザイン相談</p>
+                    <p class="text-xs text-gray-600 mt-1">地元デザイナーをご紹介</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // チャットボットのレスポンスデータ
+        const responses = {
+            '名刺': {
+                message: '名刺印刷ですね！スマイディアなら翌日お渡しも可能です。👔\n\n【料金目安】\n・100枚：3,500円〜\n・200枚：4,500円〜\n\n草津市内なら直接お届けも可能です！',
+                suggestions: ['デザインテンプレートを見る', '用紙サンプルを見たい', '見積もりを依頼']
+            },
+            'チラシ': {
+                message: 'チラシ印刷承ります！📄\n\n地域のイベントですか？それとも店舗の販促用ですか？\n\n【A4チラシ料金目安】\n・1,000枚：12,000円〜（翌日対応可）\n・プリントパック：8,000円（4営業日）\n\n✨スマイディアなら配布場所のアドバイスもできます！',
+                suggestions: ['地域イベント用', '店舗販促用', '配布エリア相談']
+            },
+            '急ぎ': {
+                message: '急ぎの印刷ですね！🏃‍♂️\n\nスマイディアの強みは地域密着の機動力です。\n\n【対応可能時間】\n・当日仕上げ：午前中受付→夕方お渡し\n・翌日仕上げ：17時まで受付\n\n草津市内なら直接お届けも可能です！',
+                suggestions: ['今すぐ相談したい', '料金を知りたい', 'データ入稿方法']
+            },
+            'デザイン': {
+                message: 'デザインのご相談ですね！🎨\n\nスマイディアでは地元のデザイナーと提携しています。\n\n【デザインサポート】\n・簡単な修正：無料\n・テンプレート利用：無料\n・オリジナルデザイン：15,000円〜\n\n印刷とセットでお得になります！',
+                suggestions: ['デザイン事例を見る', 'テンプレート一覧', 'デザイナー紹介']
+            },
+            'プリントパック': {
+                message: 'プリントパックとの違いですね！📊\n\n【スマイディアの優位性】\n✅ 対面で色校正ができる\n✅ 地域の特性を理解した提案\n✅ 急ぎの対応も柔軟に\n✅ 印刷後のフォローも充実\n\n価格だけでなく、トータルサポートで選ばれています！',
+                suggestions: ['詳しい比較表', '実際の事例', 'お客様の声']
+            }
+        };
+
+        // 汎用レスポンス
+        const genericResponse = {
+            message: 'ご質問ありがとうございます！🙏\n\n詳しい内容を確認させていただきたいので、以下からお選びいただくか、もう少し詳しく教えていただけますか？',
+            suggestions: ['印刷の見積もり', '納期について', 'デザイン相談', '会社に直接連絡']
+        };
+
+        // メッセージ送信関数
+        function sendMessage() {
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // ユーザーメッセージを表示
+            addMessage(message, 'user');
+            input.value = '';
+            
+            // タイピングインジケーターを表示
+            showTypingIndicator();
+            
+            // レスポンスを遅延表示
+            setTimeout(() => {
+                hideTypingIndicator();
+                const response = getResponse(message);
+                addMessage(response.message, 'bot');
+                
+                // サジェスチョンボタンを追加
+                if (response.suggestions) {
+                    addSuggestions(response.suggestions);
+                }
+            }, 1500);
+        }
+
+        // レスポンス取得関数
+        function getResponse(message) {
+            const lowerMessage = message.toLowerCase();
+            
+            for (const keyword in responses) {
+                if (lowerMessage.includes(keyword)) {
+                    return responses[keyword];
+                }
+            }
+            
+            return genericResponse;
+        }
+
+        // メッセージ追加関数
+        function addMessage(text, sender) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message mb-4';
+            
+            if (sender === 'user') {
+                messageDiv.innerHTML = `
+                    <div class="flex items-start justify-end">
+                        <div class="flex-1 text-right">
+                            <p class="text-xs text-gray-500 mb-1">あなた</p>
+                            <div class="bg-gray-200 rounded-lg p-3 inline-block text-left">
+                                <p class="text-sm">${text}</p>
+                            </div>
+                        </div>
+                        <div class="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center text-white font-bold ml-3">
+                            You
+                        </div>
+                    </div>
+                `;
+            } else {
+                messageDiv.innerHTML = `
+                    <div class="flex items-start">
+                        <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+                            ス
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-xs text-gray-500 mb-1">スマイちゃん</p>
+                            <div class="bg-blue-100 rounded-lg p-3 inline-block">
+                                <p class="text-sm whitespace-pre-line">${text}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // サジェスチョン追加関数
+        function addSuggestions(suggestions) {
+            const chatContainer = document.getElementById('chatContainer');
+            const suggestDiv = document.createElement('div');
+            suggestDiv.className = 'message mb-4 ml-12';
+            
+            let buttonsHtml = '';
+            suggestions.forEach(suggestion => {
+                buttonsHtml += `<button onclick="quickAction('${suggestion}')" class="text-xs bg-white border border-blue-300 text-blue-600 hover:bg-blue-50 px-3 py-1 rounded-full transition-colors mr-2 mb-2">${suggestion}</button>`;
+            });
+            
+            suggestDiv.innerHTML = buttonsHtml;
+            chatContainer.appendChild(suggestDiv);
+        }
+
+        // クイックアクション関数
+        function quickAction(text) {
+            document.getElementById('userInput').value = text;
+            sendMessage();
+        }
+
+        // タイピングインジケーター表示
+        function showTypingIndicator() {
+            const chatContainer = document.getElementById('chatContainer');
+            const typingDiv = document.createElement('div');
+            typingDiv.id = 'typingIndicator';
+            typingDiv.className = 'message mb-4';
+            typingDiv.innerHTML = `
+                <div class="flex items-start">
+                    <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+                        ス
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-xs text-gray-500 mb-1">スマイちゃんが入力中...</p>
+                        <div class="bg-blue-100 rounded-lg p-3 inline-block">
+                            <div class="typing-indicator">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(typingDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // タイピングインジケーター非表示
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+    </script>
+</body>
+</html>

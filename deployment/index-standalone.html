@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スマイディア チャットボット - Smaichan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        .smaichan-avatar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #ff69b4 0%, #ffc0cb 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-4">
+    <div class="max-w-4xl mx-auto">
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="bg-gradient-to-r from-pink-500 via-pink-400 to-pink-300 p-6 text-white">
+                <h1 class="text-3xl font-bold">スマイディア AIアシスタント</h1>
+                <p class="mt-2">スマイちゃんが印刷のご相談をお手伝いします！💕</p>
+            </div>
+            
+            <div class="p-6">
+                <div class="h-96 overflow-y-auto mb-4 border rounded-lg p-4" id="messagesContainer">
+                    <div class="flex justify-start message-slide-in">
+                        <div class="flex items-start space-x-2">
+                            <div class="w-8 h-8 rounded-full overflow-hidden bg-pink-400 flex-shrink-0">
+                                <div class="smaichan-avatar">😊</div>
+                            </div>
+                            <div class="max-w-xs px-4 py-2 rounded-lg bg-white border border-gray-200">
+                                はろー！スマイちゃんだよ〜✨ 印刷のこと何でも聞いて！
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <form id="chatForm" class="flex gap-2">
+                    <input 
+                        type="text" 
+                        id="userInput" 
+                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400"
+                        placeholder="メッセージを入力..."
+                        autocomplete="off"
+                    >
+                    <button 
+                        type="submit" 
+                        class="px-6 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors"
+                    >
+                        送信
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // シンプルな会話パターン（スタンドアロン版）
+        const patterns = {
+            'はろー': 'はろー！今日は何作る〜？✨',
+            'こんにちは': 'こんにちは〜！スマイディアのスマイちゃんです💕',
+            'あなたは誰？': 'スマイちゃんだよ〜！スマイディアの印刷案内AIアシスタント✨',
+            '年齢は？': 'スマイちゃん18歳だよ〜！フレッシュでしょ✨',
+            '名刺作りたい': '名刺ね！オッケー✨ 何枚くらい作る予定〜？',
+            'ありがとう': 'どういたしまして〜！スマイちゃんも嬉しい💕'
+        };
+
+        const chatForm = document.getElementById('chatForm');
+        const userInput = document.getElementById('userInput');
+        const messagesContainer = document.getElementById('messagesContainer');
+
+        function addMessage(content, isUser = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex ${isUser ? 'justify-end' : 'justify-start'} message-slide-in`;
+            
+            if (isUser) {
+                messageDiv.innerHTML = `
+                    <div class="max-w-xs px-4 py-2 rounded-lg bg-pink-500 text-white">
+                        ${content}
+                    </div>
+                `;
+            } else {
+                messageDiv.innerHTML = `
+                    <div class="flex items-start space-x-2">
+                        <div class="w-8 h-8 rounded-full overflow-hidden bg-pink-400 flex-shrink-0">
+                            <div class="smaichan-avatar">😊</div>
+                        </div>
+                        <div class="max-w-xs px-4 py-2 rounded-lg bg-white border border-gray-200">
+                            ${content}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function generateResponse(message) {
+            const trimmed = message.trim();
+            
+            // 完全一致チェック
+            if (patterns[trimmed]) {
+                return patterns[trimmed];
+            }
+            
+            // 部分一致チェック
+            const lowerMessage = message.toLowerCase();
+            if (lowerMessage.includes('名刺')) {
+                return '名刺の相談だね！100枚3,000円〜で作れるよ✨';
+            } else if (lowerMessage.includes('チラシ')) {
+                return 'チラシかぁ〜！A4サイズが人気だよ💕';
+            } else if (lowerMessage.includes('いくら') || lowerMessage.includes('値段')) {
+                return '何の値段かな？名刺なら100枚3,000円〜、チラシなら1000枚5,000円〜だよ';
+            }
+            
+            return 'ごめんね〜！ちょっとよくわからなかった💦\n印刷のこととか聞いてくれたら答えられるよ！';
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            if (!message) return;
+            
+            addMessage(message, true);
+            userInput.value = '';
+            
+            // タイピング表示
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'flex justify-start';
+            typingDiv.innerHTML = `
+                <div class="flex items-start space-x-2">
+                    <div class="w-8 h-8 rounded-full overflow-hidden bg-pink-400 flex-shrink-0">
+                        <div class="smaichan-avatar">💭</div>
+                    </div>
+                    <div class="max-w-xs px-4 py-2 rounded-lg bg-gray-100">
+                        <span class="typing-indicator">入力中...</span>
+                    </div>
+                </div>
+            `;
+            messagesContainer.appendChild(typingDiv);
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            typingDiv.remove();
+            const response = generateResponse(message);
+            addMessage(response);
+        });
+    </script>
+</body>
+</html>

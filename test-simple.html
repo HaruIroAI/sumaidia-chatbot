@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>シンプルテスト</title>
+</head>
+<body>
+    <h1>conversation-patterns.js テスト</h1>
+    <div id="result"></div>
+    
+    <script src="conversation-patterns.js"></script>
+    <script>
+        // ページ読み込み後にテスト実行
+        window.addEventListener('load', function() {
+            const resultDiv = document.getElementById('result');
+            let html = '<h2>テスト結果：</h2>';
+            
+            // Test 1: window.exactMatchPatterns
+            html += '<p>1. window.exactMatchPatterns exists: ' + (typeof window.exactMatchPatterns !== 'undefined') + '</p>';
+            
+            // Test 2: 「はろー」パターン
+            if (window.exactMatchPatterns) {
+                html += '<p>2. window.exactMatchPatterns["はろー"]: ' + (window.exactMatchPatterns['はろー'] || 'undefined') + '</p>';
+                html += '<p>3. Total patterns: ' + Object.keys(window.exactMatchPatterns).length + '</p>';
+            }
+            
+            // Test 3: checkGreeting function
+            html += '<p>4. window.checkGreeting exists: ' + (typeof window.checkGreeting !== 'undefined') + '</p>';
+            
+            // Test 4: checkGreeting('はろー')
+            if (window.checkGreeting) {
+                const result = window.checkGreeting('はろー');
+                html += '<p>5. checkGreeting("はろー") result: ' + JSON.stringify(result) + '</p>';
+            }
+            
+            resultDiv.innerHTML = html;
+        });
+    </script>
+</body>
+</html>

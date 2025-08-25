@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>改善されたスマイちゃんチャットボット - テスト</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-group {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-group h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .test-case {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 3px;
+        }
+        .input {
+            color: #0066cc;
+            font-weight: bold;
+        }
+        .output {
+            color: #008800;
+            margin-top: 5px;
+        }
+        .priority {
+            color: #666;
+            font-size: 0.9em;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>改善されたスマイちゃんチャットボット - テストページ</h1>
+        <p>パターンマッチングシステムの改善をテストします。</p>
+        
+        <div class="test-group">
+            <h3>完全一致テスト（優先度: 1000）</h3>
+            <div id="exactMatchTests"></div>
+        </div>
+        
+        <div class="test-group">
+            <h3>よくある質問テスト（優先度: 700-800）</h3>
+            <div id="commonQuestionTests"></div>
+        </div>
+        
+        <div class="test-group">
+            <h3>インテント分類テスト</h3>
+            <div id="intentTests"></div>
+        </div>
+        
+        <div class="test-group">
+            <h3>類似度計算テスト</h3>
+            <div id="similarityTests"></div>
+        </div>
+        
+        <div class="test-group">
+            <h3>フォールバック改善テスト</h3>
+            <div id="fallbackTests"></div>
+        </div>
+        
+        <button onclick="runAllTests()">すべてのテストを実行</button>
+        <button onclick="location.reload()">リセット</button>
+    </div>
+
+    <!-- Load the conversation patterns -->
+    <script src="conversation-patterns.js"></script>
+    
+    <script>
+        // Test cases
+        const exactMatchTestCases = [
+            'あなたは誰？',
+            'はろー',
+            'いくら？',
+            'ありがとう',
+            '早い？'
+        ];
+        
+        const commonQuestionTestCases = [
+            'あなたは誰？',
+            '何ができる？',
+            'いくら？',
+            'いつできる？'
+        ];
+        
+        const intentTestCases = [
+            'こんにちは',
+            '名刺作りたい',
+            '値段教えて',
+            'できることは？',
+            '誰ですか'
+        ];
+        
+        const similarityTestCases = [
+            ['あなたは誰？', 'あなたは誰'],
+            ['こんにちは', 'こんにちわ'],
+            ['ありがとう', 'ありがと'],
+            ['いくら？', 'いくらですか？']
+        ];
+        
+        const fallbackTestCases = [
+            'これはランダムな文章です',
+            'ぴよぴよ',
+            'xyz123'
+        ];
+        
+        // Test functions
+        function testExactMatch() {
+            const container = document.getElementById('exactMatchTests');
+            container.innerHTML = '';
+            
+            exactMatchTestCases.forEach(testCase => {
+                const div = document.createElement('div');
+                div.className = 'test-case';
+                
+                if (window.exactMatchPatterns) {
+                    const result = window.exactMatchPatterns[testCase];
+                    div.innerHTML = `
+                        <div class="input">入力: "${testCase}"</div>
+                        <div class="output">${result ? `✓ マッチ: ${result}` : '✗ マッチなし'}</div>
+                        <div class="priority">優先度: ${result ? ResponsePriority.EXACT_MATCH : 'N/A'}</div>
+                    `;
+                } else {
+                    div.innerHTML = '<div class="error">exactMatchPatterns が読み込まれていません</div>';
+                }
+                
+                container.appendChild(div);
+            });
+        }
+        
+        function testCommonQuestions() {
+            const container = document.getElementById('commonQuestionTests');
+            container.innerHTML = '';
+            
+            if (window.checkGreeting) {
+                commonQuestionTestCases.forEach(testCase => {
+                    const div = document.createElement('div');
+                    div.className = 'test-case';
+                    
+                    const result = window.checkGreeting(testCase);
+                    if (result) {
+                        div.innerHTML = `
+                            <div class="input">入力: "${testCase}"</div>
+                            <div class="output">✓ 応答: ${result.response}</div>
+                            <div class="priority">優先度: ${result.priority}</div>
+                        `;
+                    } else {
+                        div.innerHTML = `
+                            <div class="input">入力: "${testCase}"</div>
+                            <div class="output">✗ マッチなし</div>
+                        `;
+                    }
+                    
+                    container.appendChild(div);
+                });
+            } else {
+                container.innerHTML = '<div class="error">checkGreeting が読み込まれていません</div>';
+            }
+        }
+        
+        function testIntentClassification() {
+            const container = document.getElementById('intentTests');
+            container.innerHTML = '';
+            
+            if (window.ContextAwareResponder && window.ContextAwareResponder.classifyIntent) {
+                intentTestCases.forEach(testCase => {
+                    const div = document.createElement('div');
+                    div.className = 'test-case';
+                    
+                    const intent = window.ContextAwareResponder.classifyIntent(testCase);
+                    div.innerHTML = `
+                        <div class="input">入力: "${testCase}"</div>
+                        <div class="output">インテント: ${intent}</div>
+                    `;
+                    
+                    container.appendChild(div);
+                });
+            } else {
+                container.innerHTML = '<div class="error">ContextAwareResponder が読み込まれていません</div>';
+            }
+        }
+        
+        function testSimilarity() {
+            const container = document.getElementById('similarityTests');
+            container.innerHTML = '';
+            
+            if (window.calculateSimilarity) {
+                similarityTestCases.forEach(([str1, str2]) => {
+                    const div = document.createElement('div');
+                    div.className = 'test-case';
+                    
+                    const similarity = window.calculateSimilarity(str1, str2);
+                    div.innerHTML = `
+                        <div class="input">"${str1}" と "${str2}"</div>
+                        <div class="output">類似度: ${(similarity * 100).toFixed(1)}%</div>
+                    `;
+                    
+                    container.appendChild(div);
+                });
+            } else {
+                container.innerHTML = '<div class="error">calculateSimilarity が読み込まれていません</div>';
+            }
+        }
+        
+        function testFallback() {
+            const container = document.getElementById('fallbackTests');
+            container.innerHTML = '';
+            
+            if (window.generateSmartFallback) {
+                fallbackTestCases.forEach(testCase => {
+                    const div = document.createElement('div');
+                    div.className = 'test-case';
+                    
+                    const response = window.generateSmartFallback(testCase, {});
+                    div.innerHTML = `
+                        <div class="input">入力: "${testCase}"</div>
+                        <div class="output">フォールバック応答: ${response.replace(/\n/g, '<br>')}</div>
+                    `;
+                    
+                    container.appendChild(div);
+                });
+            } else {
+                container.innerHTML = '<div class="error">generateSmartFallback が読み込まれていません</div>';
+            }
+        }
+        
+        function runAllTests() {
+            console.log('Running all tests...');
+            testExactMatch();
+            testCommonQuestions();
+            testIntentClassification();
+            testSimilarity();
+            testFallback();
+        }
+        
+        // Run tests when page loads
+        window.addEventListener('load', () => {
+            setTimeout(runAllTests, 500); // Give time for scripts to load
+        });
+    </script>
+</body>
+</html>

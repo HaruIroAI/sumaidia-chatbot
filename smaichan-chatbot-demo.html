@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スマイちゃん - AI印刷相談チャットボット</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .chat-container {
+            max-width: 480px;
+            height: 100vh;
+            margin: 0 auto;
+            background-color: #fff;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #FF1493 0%, #FF69B4 50%, #FFB6C1 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .chat-header::before {
+            content: '✨';
+            position: absolute;
+            font-size: 60px;
+            opacity: 0.1;
+            right: 20px;
+            top: -10px;
+            transform: rotate(-15deg);
+        }
+
+        .avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            box-shadow: 0 0 10px rgba(255,255,255,0.5);
+            animation: bounce 2s infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .header-info h1 {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+
+        .header-info .status {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background-color: #fafafa;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.bot {
+            flex-direction: row;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #FF1493, #FF69B4);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+            box-shadow: 0 2px 5px rgba(255,20,147,0.3);
+        }
+
+        .message.user .message-avatar {
+            background: #4CAF50;
+        }
+
+        .message-content {
+            max-width: 70%;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 18px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .message.user .message-content {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .message-text {
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 12px 16px;
+            background: white;
+            border-radius: 18px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            width: fit-content;
+        }
+
+        .typing-indicator.show {
+            display: inline-block;
+        }
+
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #999;
+            margin-right: 4px;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #eee;
+        }
+
+        .quick-replies {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+        }
+
+        .quick-reply {
+            padding: 8px 16px;
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .quick-reply:hover {
+            background: linear-gradient(135deg, #FF1493, #FF69B4);
+            color: white;
+            border-color: #FF1493;
+            transform: scale(1.05);
+            box-shadow: 0 2px 8px rgba(255,20,147,0.3);
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 18px;
+            border: 2px solid #eee;
+            border-radius: 25px;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .chat-input:focus {
+            border-color: #FF1493;
+            box-shadow: 0 0 10px rgba(255,20,147,0.2);
+        }
+
+        .send-button {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #FF1493, #FF69B4);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(255,20,147,0.3);
+        }
+
+        .send-button:hover {
+            background: linear-gradient(135deg, #FF69B4, #FF1493);
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(255,20,147,0.4);
+        }
+
+        .send-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .estimate-box {
+            background: #FFF9E6;
+            border: 1px solid #FFD700;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 12px;
+        }
+
+        .estimate-title {
+            font-weight: bold;
+            color: #FF6B6B;
+            margin-bottom: 8px;
+        }
+
+        .estimate-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+
+        .estimate-price {
+            font-size: 18px;
+            font-weight: bold;
+            color: #FF6B6B;
+            margin-top: 8px;
+            text-align: right;
+        }
+
+        .handoff-notice {
+            background: #E8F5E9;
+            border: 1px solid #4CAF50;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 12px;
+            text-align: center;
+        }
+
+        .handoff-notice .icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .handoff-notice .title {
+            font-weight: bold;
+            color: #2E7D32;
+            margin-bottom: 4px;
+        }
+
+        .handoff-notice .message {
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="avatar">💕</div>
+            <div class="header-info">
+                <h1>スマイちゃん</h1>
+                <div class="status">● オンライン・いつでも相談OK！</div>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <!-- Welcome message -->
+            <div class="message bot">
+                <div class="message-avatar">💕</div>
+                <div class="message-content">
+                    <div class="message-text">
+                        やっほー！スマイディアのAI受付「スマイちゃん」だよ〜✨<br><br>
+                        印刷のことならなんでも聞いて！<br>
+                        名刺、チラシ、パンフレット、Web制作まで、ぜーんぶお任せ💕<br><br>
+                        今日はどんなの作りたい感じ？
+                    </div>
+                </div>
+            </div>
+
+            <div class="message bot" id="typingIndicator" style="display: none;">
+                <div class="message-avatar">💕</div>
+                <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input-container">
+            <div class="quick-replies" id="quickReplies">
+                <button class="quick-reply" onclick="sendQuickReply('名刺を作りたい')">名刺を作りたい</button>
+                <button class="quick-reply" onclick="sendQuickReply('チラシの見積もり')">チラシの見積もり</button>
+                <button class="quick-reply" onclick="sendQuickReply('急ぎで印刷したい')">急ぎで印刷したい</button>
+                <button class="quick-reply" onclick="sendQuickReply('相談したい')">相談したい</button>
+            </div>
+            <div class="input-wrapper">
+                <input type="text" class="chat-input" id="chatInput" placeholder="メッセージを入力..." onkeypress="handleKeyPress(event)">
+                <button class="send-button" id="sendButton" onclick="sendMessage()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Chat state management
+        const chatState = {
+            currentContext: {},
+            conversationHistory: [],
+            isTyping: false
+        };
+
+        // Price calculation logic
+        const priceCalculator = {
+            businessCard: (qty, sides, color, paper, finish) => {
+                let base = 10000; // Base price 10,000 yen
+                
+                // Quantity adjustments
+                if (qty <= 100) base = 10000;
+                else if (qty <= 500) base = 15000;
+                else if (qty <= 1000) base = 20000;
+                else base = 25000;
+                
+                // Double-sided
+                if (sides === '両面') base *= 1.3;
+                
+                // Color printing
+                if (color === 'カラー') base *= 1.2;
+                
+                // Paper quality
+                if (paper && paper.includes('高級')) base *= 1.3;
+                
+                // Special finishes
+                if (finish && finish.includes('PP')) base *= 1.2;
+                if (finish && finish.includes('箔押し')) base *= 1.5;
+                
+                // Determine price range
+                if (base < 20000) return { range: '低', estimate: Math.round(base) };
+                if (base < 30000) return { range: '中', estimate: Math.round(base) };
+                return { range: '高', estimate: Math.round(base) };
+            },
+            
+            flyer: (size, qty, sides, color, paper) => {
+                let base = 50000; // Base price for flyers
+                
+                // Size adjustments
+                const sizeMultiplier = {
+                    'A6': 0.6,
+                    'A5': 0.8,
+                    'A4': 1.0,
+                    'A3': 1.5,
+                    'B5': 0.9,
+                    'B4': 1.3
+                };
+                
+                base *= sizeMultiplier[size] || 1.0;
+                
+                // Quantity adjustments
+                if (qty <= 500) base = base * 0.8;
+                else if (qty <= 1000) base = base * 1.0;
+                else if (qty <= 5000) base = base * 1.5;
+                else base = base * 2.0;
+                
+                // Double-sided
+                if (sides === '両面') base *= 1.4;
+                
+                // Color
+                if (color === 'カラー') base *= 1.3;
+                
+                // Determine price range
+                if (base < 80000) return { range: '低', estimate: Math.round(base) };
+                if (base < 150000) return { range: '中', estimate: Math.round(base) };
+                return { range: '高', estimate: Math.round(base) };
+            }
+        };
+
+        // Response generation logic
+        const generateResponse = (userMessage) => {
+            const lowerMessage = userMessage.toLowerCase();
+            
+            // Handle greetings first
+            if (lowerMessage.match(/こんにち[はわ]|おはよ|こんばん[はわ]|はじめまして|よろしく|どうも|hello|hi|hey/)) {
+                const greetings = [
+                    'やっほー！今日はどんな印刷物作る〜？✨',
+                    'こんにちは〜！印刷のことならなんでも聞いて💕',
+                    'はーい！スマイちゃんだよ〜 何作りたい感じ？',
+                    'おっす〜！印刷の相談？それとも見積もり？'
+                ];
+                return {
+                    text: greetings[Math.floor(Math.random() * greetings.length)],
+                    quickReplies: ['名刺作りたい', 'チラシの相談', 'とりあえず相談', '見積もりほしい']
+                };
+            }
+            
+            // Handle simple acknowledgments
+            if (lowerMessage.match(/^(はい|うん|ok|おっけー|わかった|了解)$/)) {
+                return {
+                    text: 'オッケー！で、何作りたい感じ？具体的に教えて〜',
+                    quickReplies: ['名刺', 'チラシ', 'パンフレット', 'まだ決めてない']
+                };
+            }
+            
+            // Handle "what can you do" type questions
+            if (lowerMessage.match(/何ができ|できること|メニュー|サービス/)) {
+                return {
+                    text: 'スマイディアでできること？めっちゃあるよ〜！\n\n印刷系なら名刺、チラシ、パンフレット、ポスター、のぼり...\nデジタル系ならWebサイト、SNS運用、動画制作も！\n\nどれか気になるやつある？💕',
+                    quickReplies: ['印刷系の相談', 'Web制作', '動画制作', 'とりあえず見積もり']
+                };
+            }
+            
+            // Pattern matching for different scenarios
+            if (lowerMessage.includes('名刺')) {
+                if (!chatState.currentContext.type) {
+                    chatState.currentContext.type = 'businessCard';
+                    return {
+                        text: '名刺ね！オッケー✨ 何枚くらい作る予定〜？',
+                        quickReplies: ['100枚', '500枚', '1000枚', 'それ以上']
+                    };
+                }
+            }
+            
+            if (lowerMessage.includes('チラシ') || lowerMessage.includes('フライヤー')) {
+                if (!chatState.currentContext.type) {
+                    chatState.currentContext.type = 'flyer';
+                    return {
+                        text: 'チラシかぁ〜！いいね💕 サイズどうする？',
+                        quickReplies: ['A4サイズ', 'A5サイズ', 'B5サイズ', 'その他']
+                    };
+                }
+            }
+            
+            if (lowerMessage.includes('急ぎ') || lowerMessage.includes('明日') || lowerMessage.includes('今日')) {
+                chatState.currentContext.urgent = true;
+                return {
+                    text: 'おっと急ぎかぁ！任せて〜🔥 何作る？',
+                    quickReplies: ['名刺', 'チラシ', 'ポスター', 'その他']
+                };
+            }
+            
+            // Handle size selection for flyers
+            if (chatState.currentContext.type === 'flyer' && !chatState.currentContext.size) {
+                if (lowerMessage.match(/a4|a5|a6|a3|b4|b5/)) {
+                    const sizeMatch = lowerMessage.match(/(a3|a4|a5|a6|b4|b5)/i);
+                    chatState.currentContext.size = sizeMatch[0].toUpperCase();
+                    return {
+                        text: `${chatState.currentContext.size}サイズね！何部くらい作る予定？`,
+                        quickReplies: ['500部', '1000部', '3000部', '5000部以上']
+                    };
+                }
+            }
+            
+            // Handle quantity inputs
+            if (lowerMessage.match(/\d+枚/) || lowerMessage.match(/\d+部/)) {
+                const qty = parseInt(lowerMessage.match(/\d+/)[0]);
+                chatState.currentContext.quantity = qty;
+                
+                if (chatState.currentContext.type === 'businessCard') {
+                    return {
+                        text: `${qty}枚ね！了解〜 片面？両面？`,
+                        quickReplies: ['片面', '両面']
+                    };
+                } else if (chatState.currentContext.type === 'flyer') {
+                    return {
+                        text: `${qty}部ね！オッケー 片面？両面？`,
+                        quickReplies: ['片面', '両面']
+                    };
+                }
+            }
+            
+            // Handle sides selection
+            if (lowerMessage.includes('片面') || lowerMessage.includes('両面')) {
+                chatState.currentContext.sides = lowerMessage.includes('両面') ? '両面' : '片面';
+                return {
+                    text: 'カラーにする？それともモノクロ？',
+                    quickReplies: ['カラー', 'モノクロ']
+                };
+            }
+            
+            // Handle color selection
+            if (lowerMessage.includes('カラー') || lowerMessage.includes('モノクロ')) {
+                chatState.currentContext.color = lowerMessage.includes('カラー') ? 'カラー' : 'モノクロ';
+                
+                // If we have enough info, calculate estimate
+                if (chatState.currentContext.type === 'businessCard' && 
+                    chatState.currentContext.quantity && 
+                    chatState.currentContext.sides && 
+                    chatState.currentContext.color) {
+                    
+                    const result = priceCalculator.businessCard(
+                        chatState.currentContext.quantity,
+                        chatState.currentContext.sides,
+                        chatState.currentContext.color
+                    );
+                    
+                    return {
+                        text: `オッケー！ちょっと計算するね〜💕`,
+                        estimate: {
+                            items: [
+                                { label: '商品', value: '名刺印刷' },
+                                { label: '数量', value: `${chatState.currentContext.quantity}枚` },
+                                { label: '仕様', value: `${chatState.currentContext.sides}・${chatState.currentContext.color}` },
+                                { label: '価格帯', value: `${result.range}（${result.estimate.toLocaleString()}円前後）` }
+                            ],
+                            note: '※正確な金額は担当者が最終確認します'
+                        },
+                        followUp: '急ぎなら担当の人に繋ぐけど、どうする？'
+                    };
+                } else if (chatState.currentContext.type === 'flyer' && 
+                    chatState.currentContext.size &&
+                    chatState.currentContext.quantity && 
+                    chatState.currentContext.sides && 
+                    chatState.currentContext.color) {
+                    
+                    const result = priceCalculator.flyer(
+                        chatState.currentContext.size,
+                        chatState.currentContext.quantity,
+                        chatState.currentContext.sides,
+                        chatState.currentContext.color
+                    );
+                    
+                    return {
+                        text: `はい、計算できたよ〜！`,
+                        estimate: {
+                            items: [
+                                { label: '商品', value: 'チラシ印刷' },
+                                { label: 'サイズ', value: chatState.currentContext.size },
+                                { label: '数量', value: `${chatState.currentContext.quantity}部` },
+                                { label: '仕様', value: `${chatState.currentContext.sides}・${chatState.currentContext.color}` },
+                                { label: '価格帯', value: `${result.range}（${result.estimate.toLocaleString()}円前後）` }
+                            ],
+                            note: '※正確な金額は担当者が最終確認します'
+                        },
+                        followUp: 'デザインとかも必要？それとも入稿データある？'
+                    };
+                }
+            }
+            
+            // Handle consultation requests
+            if (lowerMessage.includes('相談') || lowerMessage.includes('わからない') || lowerMessage.includes('教えて')) {
+                return {
+                    text: 'うんうん、なんでも相談して〜！何に困ってる？💕',
+                    quickReplies: ['印刷物の種類', '予算について', '納期について', 'デザインも頼みたい']
+                };
+            }
+            
+            // Handle PP question
+            if (lowerMessage.match(/pp[っ]?て|ピーピー/)) {
+                return {
+                    text: 'PPは表面保護の薄〜いフィルムのことだよ！\n\nよく触るものとか、長く使うものにはおすすめ〜✨\n短期間で配るだけなら無くてもOKかも！\n\nどんな使い方する予定？',
+                    quickReplies: ['長く使う', '短期配布', 'よくわからない', '他の加工も知りたい']
+                };
+            }
+            
+            // Handle design requests
+            if (lowerMessage.includes('デザイン')) {
+                return {
+                    text: 'デザインもやるよ〜！素材とかある？ロゴとか写真とか✨',
+                    quickReplies: ['素材あり', '一部あり', '全部お任せ', '相談したい']
+                };
+            }
+            
+            // Handle handoff requests
+            if (lowerMessage.includes('担当') || lowerMessage.includes('引き継') || lowerMessage.includes('人間')) {
+                return {
+                    handoff: true,
+                    text: 'りょーかい！プロの担当さんに繋ぐね〜',
+                    reason: 'もっと詳しい話が必要みたいだから、担当の人呼んでくる！'
+                };
+            }
+            
+            // Default response
+            return {
+                text: 'ん〜？ちょっとよくわかんなかった💦 何作りたいかもうちょい詳しく教えて〜！',
+                quickReplies: ['名刺', 'チラシ', 'パンフレット', '相談したい']
+            };
+        };
+
+        // UI Functions
+        function addMessage(content, isUser = false) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const typingIndicator = document.getElementById('typingIndicator');
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user' : 'bot'}`;
+            
+            let messageHTML = `
+                <div class="message-avatar">${isUser ? '👤' : '💕'}</div>
+                <div class="message-content">
+                    <div class="message-text">${content}</div>
+                </div>
+            `;
+            
+            messageDiv.innerHTML = messageHTML;
+            messagesContainer.insertBefore(messageDiv, typingIndicator);
+            
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function addEstimate(estimate) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const typingIndicator = document.getElementById('typingIndicator');
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+            
+            let estimateHTML = '<div class="estimate-box"><div class="estimate-title">📋 概算お見積もり</div>';
+            
+            estimate.items.forEach(item => {
+                estimateHTML += `
+                    <div class="estimate-item">
+                        <span>${item.label}:</span>
+                        <span>${item.value}</span>
+                    </div>
+                `;
+            });
+            
+            if (estimate.note) {
+                estimateHTML += `<div style="margin-top: 8px; font-size: 12px; color: #666;">${estimate.note}</div>`;
+            }
+            
+            estimateHTML += '</div>';
+            
+            messageDiv.innerHTML = `
+                <div class="message-avatar">💕</div>
+                <div class="message-content">
+                    ${estimateHTML}
+                </div>
+            `;
+            
+            messagesContainer.insertBefore(messageDiv, typingIndicator);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function addHandoffNotice() {
+            const messagesContainer = document.getElementById('chatMessages');
+            const typingIndicator = document.getElementById('typingIndicator');
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+            
+            messageDiv.innerHTML = `
+                <div class="message-avatar">💕</div>
+                <div class="message-content">
+                    <div class="handoff-notice">
+                        <div class="icon">🤝</div>
+                        <div class="title">担当者へ引き継ぎ中...</div>
+                        <div class="message">30分以内に担当者から折り返しご連絡いたします</div>
+                    </div>
+                </div>
+            `;
+            
+            messagesContainer.insertBefore(messageDiv, typingIndicator);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Save lead data
+            const leadData = {
+                timestamp: new Date().toISOString(),
+                context: chatState.currentContext,
+                conversation: chatState.conversationHistory
+            };
+            
+            const leads = JSON.parse(localStorage.getItem('smaichan_leads') || '[]');
+            leads.push(leadData);
+            localStorage.setItem('smaichan_leads', JSON.stringify(leads));
+        }
+
+        function showTyping() {
+            document.getElementById('typingIndicator').style.display = 'flex';
+            const messagesContainer = document.getElementById('chatMessages');
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function hideTyping() {
+            document.getElementById('typingIndicator').style.display = 'none';
+        }
+
+        function updateQuickReplies(replies) {
+            const container = document.getElementById('quickReplies');
+            container.innerHTML = '';
+            
+            if (replies && replies.length > 0) {
+                replies.forEach(reply => {
+                    const button = document.createElement('button');
+                    button.className = 'quick-reply';
+                    button.textContent = reply;
+                    button.onclick = () => sendQuickReply(reply);
+                    container.appendChild(button);
+                });
+            }
+        }
+
+        function sendQuickReply(text) {
+            document.getElementById('chatInput').value = text;
+            sendMessage();
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (!message || chatState.isTyping) return;
+            
+            // Add user message
+            addMessage(message, true);
+            chatState.conversationHistory.push({ role: 'user', content: message });
+            
+            // Clear input
+            input.value = '';
+            
+            // Disable input while processing
+            chatState.isTyping = true;
+            input.disabled = true;
+            document.getElementById('sendButton').disabled = true;
+            
+            // Show typing indicator
+            showTyping();
+            
+            // Simulate processing delay
+            await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
+            
+            // Generate response
+            const response = generateResponse(message);
+            
+            // Hide typing
+            hideTyping();
+            
+            // Add bot response
+            addMessage(response.text);
+            chatState.conversationHistory.push({ role: 'bot', content: response.text });
+            
+            // Add estimate if present
+            if (response.estimate) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                addEstimate(response.estimate);
+            }
+            
+            // Add follow-up if present
+            if (response.followUp) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                addMessage(response.followUp);
+            }
+            
+            // Handle handoff
+            if (response.handoff) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                addHandoffNotice();
+            }
+            
+            // Update quick replies
+            updateQuickReplies(response.quickReplies);
+            
+            // Re-enable input
+            chatState.isTyping = false;
+            input.disabled = false;
+            document.getElementById('sendButton').disabled = false;
+            input.focus();
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('chatInput').focus();
+        });
+    </script>
+</body>
+</html>

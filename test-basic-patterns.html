@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>基本パターンマッチングテスト</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            margin: 15px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .input {
+            color: #0066cc;
+            font-weight: bold;
+        }
+        .output {
+            color: #008800;
+            margin-top: 10px;
+        }
+        .error {
+            color: red;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>基本パターンマッチングテスト</h1>
+        <p>「はろー」と「あなたは誰？」の応答をテストします。</p>
+        
+        <div id="testResults"></div>
+        
+        <button onclick="runTests()">テストを実行</button>
+        <button onclick="testChatbot()">実際のチャットボットをテスト</button>
+    </div>
+
+    <!-- Load the conversation patterns -->
+    <script src="conversation-patterns.js"></script>
+    <!-- Load the chatbot HTML file's scripts -->
+    <script>
+        const testCases = [
+            'はろー',
+            'あなたは誰？',
+            'あなたのお名前は？',
+            'こんにちは',
+            'ありがとう'
+        ];
+        
+        function runTests() {
+            const container = document.getElementById('testResults');
+            container.innerHTML = '';
+            
+            testCases.forEach(testCase => {
+                const div = document.createElement('div');
+                div.className = 'test-case';
+                
+                let result = '';
+                
+                // Test 1: Direct exact match pattern check
+                if (window.exactMatchPatterns) {
+                    const exactMatch = window.exactMatchPatterns[testCase];
+                    if (exactMatch) {
+                        result += `<div><strong>exactMatchPatterns:</strong> ✓ ${exactMatch}</div>`;
+                    } else {
+                        result += `<div><strong>exactMatchPatterns:</strong> ✗ マッチなし</div>`;
+                    }
+                } else {
+                    result += `<div class="error">exactMatchPatterns が読み込まれていません</div>`;
+                }
+                
+                // Test 2: checkGreeting function
+                if (window.checkGreeting) {
+                    const greetingResult = window.checkGreeting(testCase);
+                    if (greetingResult && greetingResult.response) {
+                        result += `<div><strong>checkGreeting:</strong> ✓ ${greetingResult.response} (優先度: ${greetingResult.priority})</div>`;
+                    } else {
+                        result += `<div><strong>checkGreeting:</strong> ✗ マッチなし</div>`;
+                    }
+                } else {
+                    result += `<div class="error">checkGreeting が読み込まれていません</div>`;
+                }
+                
+                div.innerHTML = `
+                    <div class="input">入力: "${testCase}"</div>
+                    <div class="output">${result}</div>
+                `;
+                
+                container.appendChild(div);
+            });
+        }
+        
+        function testChatbot() {
+            // Open the actual chatbot in a new window for testing
+            window.open('smaichan-chatbot-complete.html', '_blank');
+        }
+        
+        // Run tests when page loads
+        window.addEventListener('load', () => {
+            setTimeout(runTests, 500); // Give time for scripts to load
+        });
+    </script>
+</body>
+</html>
