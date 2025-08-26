@@ -55,3 +55,4 @@ SUMAIDIA様向けAIチャットボット「スマイちゃん」のプロジェ�
 
 ## お問い合わせ
 SUMAIDIA様専用のカスタマイズについては別途ご相談ください。
+# Force redeploy Tue Aug 26 11:24:22 JST 2025
