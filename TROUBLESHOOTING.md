@@ -84,6 +84,62 @@ curl http://localhost:8888/.netlify/functions/selftest
 curl https://cute-frangipane-efe657.netlify.app/.netlify/functions/selftest
 ```
 
+## Responses APIでの典型エラーと修正要点
+
+### よく発生するエラーパターン
+
+1. **パラメータエラー**
+   ```json
+   {"error": {"message": "Unsupported parameter: 'max_tokens'"}}
+   ```
+   - **原因**: Chat Completions API のパラメータを使用
+   - **修正**: `max_tokens` → `max_output_tokens`
+
+2. **型エラー**
+   ```json
+   {"error": {"message": "Invalid value: 'text' for content[].type"}}
+   ```
+   - **原因**: content の type が間違っている
+   - **修正**: 入力は `type: "input_text"`、出力は `type: "output_text"`
+
+3. **空のレスポンス**
+   - **症状**: `data.output_text` が undefined
+   - **原因**: 出力の抽出方法が不適切
+   - **修正**: 以下の優先順位で抽出
+     ```javascript
+     // 1. output_text を最優先
+     let text = data.output_text || "";
+     // 2. output 配列から抽出
+     if (!text && Array.isArray(data.output)) {
+       text = data.output
+         .flatMap(p => p?.content ?? [])
+         .filter(c => c?.type === "output_text")
+         .map(c => c.text)
+         .join("");
+     }
+     ```
+
+### デバッグのコツ
+
+1. **生レスポンスの確認**
+   ```bash
+   curl "https://your-site.netlify.app/.netlify/functions/chat?debug=1" \
+     -X POST -H "Content-Type: application/json" \
+     -d '{"messages":[{"role":"user","content":"test"}]}'
+   ```
+
+2. **最小限のテスト**
+   ```javascript
+   // selftest エンドポイントで基本動作確認
+   fetch("/.netlify/functions/selftest")
+     .then(r => r.json())
+     .then(console.log)
+   ```
+
+3. **ログの確認場所**
+   - Netlify Dashboard → Functions → View logs
+   - エラー時は完全なスタックトレースが記録される
+
 ## 関連ドキュメント
 - [Responses API 互換性ガイド](docs/responses-api-compat.md)
 - [変更時チェックリスト](CHECKLIST.md)
