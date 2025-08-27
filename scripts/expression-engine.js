@@ -9,6 +9,10 @@ class ExpressionEngine {
         this.initialized = false;
         this.lastUpdateTime = {};
         
+        // Debug telemetry buffer (ring buffer, max 100 entries)
+        this.telemetryBuffer = [];
+        this.maxTelemetrySize = 100;
+        
         // Simple sentiment dictionaries
         this.positiveWords = ['うれし', '嬉し', '最高', '素敵', 'いい', '良い', '楽し', 'やった', '成功', 'おめでと', '感謝', 'ありがと'];
         this.negativeWords = ['悲し', 'つら', '困', '失敗', 'ダメ', '無理', '難し', 'イライラ', 'むか', '怒', '最悪', '嫌'];
@@ -300,11 +304,55 @@ class ExpressionEngine {
         // Update last use time
         this.lastUpdateTime[bestExpression.id] = now;
 
-        return {
+        const result = {
             id: bestExpression.id,
             score: bestScore,
             reasons: reasons.get(bestExpression.id) || []
         };
+
+        // Debug telemetry logging
+        if (window.__debugExpressions) {
+            this.logTelemetry(text, result);
+        }
+
+        return result;
+    }
+
+    /**
+     * Log telemetry data for debugging
+     */
+    logTelemetry(text, result) {
+        // Create a simple hash of the text for privacy
+        const textHash = this.simpleHash(text || '');
+        
+        const entry = {
+            ts: new Date().toISOString().substring(11, 19), // HH:MM:SS
+            textHash: textHash,
+            id: result.id,
+            score: result.score,
+            reason: result.reasons[0] || 'none'
+        };
+        
+        // Add to ring buffer
+        this.telemetryBuffer.push(entry);
+        
+        // Maintain max size
+        if (this.telemetryBuffer.length > this.maxTelemetrySize) {
+            this.telemetryBuffer.shift();
+        }
+    }
+
+    /**
+     * Simple hash function for text (for privacy in telemetry)
+     */
+    simpleHash(text) {
+        let hash = 0;
+        for (let i = 0; i < text.length; i++) {
+            const char = text.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        return Math.abs(hash).toString(16).substring(0, 6);
     }
 
     /**
@@ -341,4 +389,28 @@ if (typeof module !== 'undefined' && module.exports) {
 if (typeof window !== 'undefined') {
     window.expressionEngine = expressionEngine;
     window.ExpressionEngine = ExpressionEngine;
+    
+    // Debug utility function
+    window.dumpExpressions = function() {
+        if (!expressionEngine.telemetryBuffer || expressionEngine.telemetryBuffer.length === 0) {
+            console.log('No expression telemetry data. Enable with: window.__debugExpressions = true');
+            return;
+        }
+        
+        console.log(`Expression Telemetry (last ${expressionEngine.telemetryBuffer.length} selections):`);
+        console.table(expressionEngine.telemetryBuffer);
+        
+        // Also show summary statistics
+        const stats = {};
+        expressionEngine.telemetryBuffer.forEach(entry => {
+            stats[entry.id] = (stats[entry.id] || 0) + 1;
+        });
+        
+        console.log('\nExpression frequency:');
+        console.table(Object.entries(stats).map(([id, count]) => ({
+            expression: id,
+            count: count,
+            percentage: `${(count / expressionEngine.telemetryBuffer.length * 100).toFixed(1)}%`
+        })));
+    };
 }
