@@ -4,10 +4,16 @@
   "description": "Sumaidia Chatbot with Netlify Functions",
   "type": "module",
   "scripts": {
-    "build": "echo 'No build step required'",
+    "build:css": "tailwindcss -i ./src/styles/tailwind.css -o ./assets/tailwind.css --minify",
+    "build": "npm run build:css",
     "test": "node scripts/selftest.mjs"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17"
   }
 }
