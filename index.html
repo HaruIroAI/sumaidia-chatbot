@@ -1275,7 +1275,17 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             }
             
             // 感情の決定：JSONの感情情報を優先、なければテキストから検出
-            const finalEmotion = responseEmotion || detectEmotion(responseText);
+            let finalEmotion = responseEmotion;
+            if (!finalEmotion) {
+                const { id } = window.expressionEngine.select({
+                    text: responseText,
+                    role: 'assistant',
+                    contexts: analyzeContext(responseText),
+                    lastId: window.__lastExpressionId || null
+                });
+                window.__lastExpressionId = id;
+                finalEmotion = id;
+            }
             
             addMessage(responseText, false, finalEmotion);
             conversationManager.addMessage(responseText, false); // ConversationManagerに追加
