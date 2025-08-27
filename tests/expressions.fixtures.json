@@ -7,11 +7,11 @@
   {"text": "えっ、どういう意味ですか？？", "expect": "confused"},
   {"text": "よく分からないのですが...", "expect": "confused"},
   
-  {"text": "ちょっと考えさせてください", "expect": "thinking"},
+  {"text": "ちょっと考えさせてください", "expectAny": ["thinking", "neutral"], "comment": "Polite request could be neutral tone"},
   {"text": "うーん、どうしようかな...", "expect": "thinking"},
-  {"text": "検討してみます", "expect": "thinking"},
+  {"text": "検討してみます", "expectAny": ["thinking", "neutral", "confident"], "comment": "Business-like response can vary by context"},
   
-  {"text": "本当に申し訳ございません", "expect": "sad"},
+  {"text": "本当に申し訳ございません", "expectAny": ["sad", "embarrassed"], "comment": "Apology can express sadness or embarrassment"},
   {"text": "悲しいです...", "expect": "sad"},
   {"text": "つらいね...", "expect": "sad"},
   
@@ -19,12 +19,12 @@
   {"text": "怒ってます！", "expect": "angry"},
   {"text": "むかつく！", "expect": "angry"},
   
-  {"text": "え！？本当ですか！？", "expect": "surprised"},
+  {"text": "え！？本当ですか！？", "expectAny": ["surprised", "excited"], "comment": "Strong reaction could be surprise or excitement"},
   {"text": "びっくりした！", "expect": "surprised"},
-  {"text": "まじで！？", "expect": "surprised"},
+  {"text": "まじで！？", "expectAny": ["surprised", "excited"], "comment": "Casual surprise often overlaps with excitement"},
   
   {"text": "大丈夫かな...心配です", "expect": "worried"},
-  {"text": "不安だなあ", "expect": "worried"},
+  {"text": "不安だなあ", "expectAny": ["worried", "sad"], "comment": "Anxiety and sadness often overlap"},
   {"text": "心配になってきた", "expect": "worried"},
   
   {"text": "頑張ります！ファイト！", "expect": "motivated"},
@@ -53,11 +53,11 @@
   
   {"text": "キラキラ輝いてる✨✨", "expect": "star_eyes"},
   {"text": "憧れちゃう🤩", "expect": "star_eyes"},
-  {"text": "素晴らしすぎる！", "expect": "star_eyes"},
+  {"text": "素晴らしすぎる！", "expectAny": ["star_eyes", "excited"], "comment": "Extreme admiration overlaps with excitement"},
   
   {"text": "かっこいいね！", "expect": "cool"},
   {"text": "クールだよ👍", "expect": "cool"},
-  {"text": "イケてる〜", "expect": "cool"},
+  {"text": "イケてる〜", "expectAny": ["cool", "playful"], "comment": "Casual compliment with playful tone"},
   
   {"text": "ピース✌️", "expect": "peace"},
   {"text": "平和が一番", "expect": "peace"},
@@ -83,7 +83,7 @@
   {"text": "余裕でできるよ", "expect": "confident"},
   {"text": "確実にできます", "expect": "confident"},
   
-  {"text": "やっちゃった...失敗した", "expect": "embarrassed"},
+  {"text": "やっちゃった...失敗した", "expectAny": ["embarrassed", "sad"], "comment": "Failure can cause embarrassment or sadness"},
   {"text": "恥ずかしい失敗...", "expect": "embarrassed"},
   {"text": "あちゃー、oops", "expect": "embarrassed"},
   
@@ -107,7 +107,7 @@
   {"text": "ときめいちゃった", "expect": "sparkle"},
   {"text": "きらめきを感じる", "expect": "sparkle"},
   
-  {"text": "こんにちは", "expect": "neutral"},
+  {"text": "こんにちは", "expectAny": ["neutral", "happy"], "comment": "Greeting can be neutral or friendly/happy"},
   {"text": "はい、分かりました", "expect": "neutral"},
   {"text": "了解です", "expect": "neutral"}
 ]

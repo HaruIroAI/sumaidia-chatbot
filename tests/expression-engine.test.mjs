@@ -83,7 +83,7 @@ class ExpressionTester {
     }
 
     async testFixture(fixture, testNumber) {
-        const { text, expect } = fixture;
+        const { text, expect, expectAny, comment } = fixture;
         
         try {
             
@@ -95,15 +95,25 @@ class ExpressionTester {
                 lastId: null
             });
 
-            // Assert the result
-            assert.strictEqual(
-                result.id,
-                expect,
-                `Expected "${expect}" but got "${result.id}"`
-            );
-
-            this.passed++;
-            console.log(`✅ Test #${testNumber}: "${text.substring(0, 30)}..." → ${result.id} (score: ${result.score})`);
+            // Handle expectAny for ambiguous cases
+            if (expectAny) {
+                const isMatch = expectAny.includes(result.id);
+                if (!isMatch) {
+                    throw new Error(`Expected one of [${expectAny.join(', ')}] but got "${result.id}"`);
+                }
+                this.passed++;
+                const commentStr = comment ? ` // ${comment}` : '';
+                console.log(`✅ Test #${testNumber}: "${text.substring(0, 30)}..." → ${result.id} ∈ [${expectAny.join(',')}] (score: ${result.score})${commentStr}`);
+            } else {
+                // Assert exact match
+                assert.strictEqual(
+                    result.id,
+                    expect,
+                    `Expected "${expect}" but got "${result.id}"`
+                );
+                this.passed++;
+                console.log(`✅ Test #${testNumber}: "${text.substring(0, 30)}..." → ${result.id} (score: ${result.score})`);
+            }
             
         } catch (error) {
             this.failed++;
@@ -118,7 +128,12 @@ class ExpressionTester {
             });
             
             console.log(`❌ Test #${testNumber}: "${text.substring(0, 30)}..."`);
-            console.log(`   Expected: ${expect}`);
+            if (expectAny) {
+                console.log(`   Expected one of: [${expectAny.join(', ')}]`);
+                if (comment) console.log(`   Comment: ${comment}`);
+            } else {
+                console.log(`   Expected: ${expect}`);
+            }
             console.log(`   Got: ${actualResult.id} (score: ${actualResult.score})`);
             console.log(`   Reasons: ${actualResult.reasons.join(', ')}`);
             console.log('');
@@ -143,7 +158,9 @@ class ExpressionTester {
             // Group failures by expected expression
             const failuresByExpected = {};
             for (const failure of this.failures) {
-                const expected = failure.fixture.expect;
+                const expected = failure.fixture.expectAny 
+                    ? `[${failure.fixture.expectAny.join(', ')}]`
+                    : failure.fixture.expect;
                 if (!failuresByExpected[expected]) {
                     failuresByExpected[expected] = [];
                 }
@@ -152,9 +169,12 @@ class ExpressionTester {
             
             // Print grouped failures
             for (const [expected, failures] of Object.entries(failuresByExpected)) {
-                console.log(`\n  Expected "${expected}" (${failures.length} failures):`);
+                const isArray = expected.startsWith('[');
+                const label = isArray ? `Expected one of ${expected}` : `Expected "${expected}"`;
+                console.log(`\n  ${label} (${failures.length} failures):`);
                 for (const failure of failures) {
-                    console.log(`    - Test #${failure.testNumber}: "${failure.fixture.text.substring(0, 40)}..."`);
+                    const commentStr = failure.fixture.comment ? ` // ${failure.fixture.comment}` : '';
+                    console.log(`    - Test #${failure.testNumber}: "${failure.fixture.text.substring(0, 40)}..."${commentStr}`);
                 }
             }
             
