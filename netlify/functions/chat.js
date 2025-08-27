@@ -40,47 +40,53 @@ export async function handler(event) {
     const hasSystemPrompt = userMessages.some(m => m.role === "system");
     const input = hasSystemPrompt ? userMessages : [systemPrompt, ...userMessages];
 
-    // OpenAI 呼び出し（最小パラメータのみ）
+    // OpenAI 呼び出し
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        input,
-        max_output_tokens: 300
-      }),
+      headers: { "content-type": "application/json", "authorization": `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, input, max_output_tokens: 500 }) // ★ 300→500
     });
 
-    const data = await r.json().catch(() => ({}));
+    // ★ 先に raw を取る
+    const raw = await r.text();
+    let data = null;
+    try { data = JSON.parse(raw); } catch {}
 
-    // デバッグ: ?debug=1 なら生レス返却
+    // ★ debug=1 なら生の raw と parsed を返す
     if (event.queryStringParameters?.debug === "1") {
-      return { statusCode: r.status, headers, body: JSON.stringify(data) };
+      return { statusCode: r.ok ? 200 : r.status, headers, body: JSON.stringify({ status:r.status, raw, parsed:data }) };
     }
 
+    // エラー時は message と raw を返す
     if (!r.ok) {
-      const msg = data?.error?.message || JSON.stringify(data);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error:"OpenAI error", status:r.status, message: msg })
-      };
+      const msg = data?.error?.message || raw || "(no body)";
+      return { statusCode: 500, headers, body: JSON.stringify({ error:"OpenAI error", status:r.status, message: msg }) };
     }
 
-    // 出力抽出（output_text 優先 → output[*].content[*].text(type=output_text)）
-    let text = typeof data.output_text === "string" ? data.output_text : "";
-    if (!text && Array.isArray(data.output)) {
-      const parts = data.output.flatMap(p => p?.content ?? []);
-      const outTexts =
-        parts.filter(c => c?.type === "output_text").map(c => c.text)
-             .concat(parts.filter(c => c?.type === "text").map(c => c.text)); // 保険
-      text = outTexts.join("").trim();
+    // ★ 抽出を関数化
+    function extract(d) {
+      if (!d) return "";
+      if (typeof d.output_text === "string" && d.output_text.trim()) return d.output_text.trim();
+      if (Array.isArray(d.output)) {
+        const texts = [];
+        for (const p of d.output) {
+          const parts = Array.isArray(p?.content) ? p.content : [];
+          for (const c of parts) {
+            if ((c?.type === "output_text" || c?.type === "text") && typeof c.text === "string") {
+              texts.push(c.text);
+            }
+          }
+        }
+        const s = texts.join("").trim();
+        if (s) return s;
+      }
+      return "";
     }
-    // 最終ガード：空文字は安全文に
-    if (!text || !text.trim()) {
+
+    let text = extract(data);
+
+    // 最終ガード（空は返さない）
+    if (!text) {
       text = "了解だよー！少し混雑してるかも。要件をもう一度だけ教えてくれる？";
     }
 
@@ -115,12 +121,12 @@ export async function handler(event) {
         }, 
         finish_reason: "stop" 
       }],
-      usage: data.usage
+      usage: data?.usage
     };
 
     return {
       statusCode: 200,
-      headers: { ...headers, "x-model": data.model || model },
+      headers: { ...headers, "x-model": data?.model || model },
       body: JSON.stringify(payload),
     };
 
