@@ -17,6 +17,15 @@ class ExpressionEngine {
         this.testMode = false;
         this.nowFunction = () => Date.now();
         
+        // Default weights (can be overridden by weights.json)
+        this.weights = {
+            globalThreshold: 12,
+            keywordWeight: 10,
+            regexWeight: 15,
+            punctuationCap: 9,
+            negationPenalty: 8
+        };
+        
         // Simple sentiment dictionaries
         this.positiveWords = ['うれし', '嬉し', '最高', '素敵', 'いい', '良い', '楽し', 'やった', '成功', 'おめでと', '感謝', 'ありがと'];
         this.negativeWords = ['悲し', 'つら', '困', '失敗', 'ダメ', '無理', '難し', 'イライラ', 'むか', '怒', '最悪', '嫌'];
@@ -40,6 +49,18 @@ class ExpressionEngine {
      */
     async init(configPath = '/config/expressions.json') {
         try {
+            // Load weights if available
+            try {
+                const weightsResponse = await fetch('/config/weights.json');
+                if (weightsResponse.ok) {
+                    const loadedWeights = await weightsResponse.json();
+                    this.weights = { ...this.weights, ...loadedWeights };
+                    console.log('Loaded optimized weights:', this.weights);
+                }
+            } catch (e) {
+                // Weights file optional, continue with defaults
+            }
+            
             const response = await fetch(configPath);
             if (!response.ok) {
                 console.warn('Failed to load expressions config, using defaults');
@@ -52,7 +73,7 @@ class ExpressionEngine {
             this.expressions = this.expressions.map(exp => ({
                 ...exp,
                 priority: exp.priority ?? 50,
-                threshold: exp.threshold ?? 12,
+                threshold: exp.threshold ?? this.weights.globalThreshold,
                 cooldown: exp.cooldown ?? 1800,
                 group: exp.group ?? 'neutral',
                 patterns: exp.patterns ?? []
@@ -144,7 +165,7 @@ class ExpressionEngine {
                 kw !== 'default' && normalizedText.includes(kw.toLowerCase())
             );
             if (keywordMatches.length > 0) {
-                score += keywordMatches.length * 10;
+                score += keywordMatches.length * this.weights.keywordWeight;
                 expressionReasons.push(`keywords: ${keywordMatches.join(',')}`);
             }
 
@@ -154,7 +175,7 @@ class ExpressionEngine {
                     try {
                         const regex = new RegExp(pattern, 'gi');
                         if (regex.test(text)) {
-                            score += 15;
+                            score += this.weights.regexWeight;
                             expressionReasons.push(`pattern: ${pattern}`);
                         }
                     } catch (e) {
@@ -166,8 +187,8 @@ class ExpressionEngine {
             // c) Exclamation/Question marks (+3 per mark, max +9)
             const exclamations = (text.match(/[！!]+/g) || []).length;
             const questions = (text.match(/[？?]+/g) || []).length;
-            const exclamScore = Math.min(exclamations * 3, 9);
-            const questionScore = Math.min(questions * 3, 9);
+            const exclamScore = Math.min(exclamations * 3, this.weights.punctuationCap);
+            const questionScore = Math.min(questions * 3, this.weights.punctuationCap);
             if (exclamScore > 0) {
                 score += exclamScore;
                 expressionReasons.push(`exclamations: +${exclamScore}`);
@@ -218,7 +239,7 @@ class ExpressionEngine {
             // Negation detection
             const hasNegation = /じゃない|なくて|無理|ない|ません/.test(normalizedText);
             if (hasNegation && expression.group === 'positive') {
-                score -= 8;
+                score -= this.weights.negationPenalty;
                 expressionReasons.push('negation penalty');
             }
 

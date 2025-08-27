@@ -1,0 +1,7 @@
+{
+  "globalThreshold": 12,
+  "keywordWeight": 8,
+  "regexWeight": 12,
+  "punctuationCap": 6,
+  "negationPenalty": 6
+}
