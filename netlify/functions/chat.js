@@ -17,7 +17,7 @@ export async function handler(event) {
     // ✅ Responses APIは messages で渡すのが安定
     const msgs = (messages || []).map(m => ({
       role: m.role,
-      content: [{ type: "text", text: m.content }]
+      content: [{ type: "input_text", text: m.content }]  // ← ココ！ text → input_text
     }));
 
     const r = await fetch("https://api.openai.com/v1/responses", {
