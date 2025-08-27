@@ -4,12 +4,10 @@
   "description": "Sumaidia Chatbot with Netlify Functions",
   "type": "module",
   "scripts": {
-    "build": "echo 'No build step required'"
+    "build": "echo 'No build step required'",
+    "test": "node scripts/selftest.mjs"
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "dependencies": {
-    "openai": "^4.0.0"
   }
 }
