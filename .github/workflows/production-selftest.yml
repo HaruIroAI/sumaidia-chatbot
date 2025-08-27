@@ -1,0 +1,87 @@
+name: Production Selftest
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    name: Run Production Selftest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Run selftest endpoint check
+      id: selftest
+      run: |
+        echo "🔍 Testing production selftest endpoint..."
+        response=$(curl -s https://cute-frangipane-efe657.netlify.app/.netlify/functions/selftest)
+        echo "Response: $response"
+        
+        # Check if response is valid JSON and ok=true
+        if echo "$response" | jq -e '.ok == true and .sample == "pong"' > /dev/null; then
+          echo "✅ Selftest passed!"
+          echo "Model: $(echo "$response" | jq -r '.model')"
+          echo "Sample: $(echo "$response" | jq -r '.sample')"
+          exit 0
+        else
+          echo "❌ Selftest failed!"
+          echo "$response" | jq '.'
+          exit 1
+        fi
+
+    - name: Run local selftest script
+      if: always()
+      run: |
+        echo "🔍 Running local selftest script..."
+        node scripts/selftest.mjs || exit_code=$?
+        
+        if [ -z "$exit_code" ]; then
+          echo "✅ All tests passed!"
+        else
+          echo "❌ Tests failed with exit code: $exit_code"
+          exit $exit_code
+        fi
+
+    - name: Create issue on failure
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const title = `🚨 Production Selftest Failed - ${new Date().toISOString()}`;
+          const body = `## Production Selftest Failure
+          
+          The production selftest endpoint returned an unexpected result.
+          
+          ### Quick Actions
+          1. Check [Netlify Functions Logs](https://app.netlify.com/sites/cute-frangipane-efe657/functions)
+          2. Verify environment variables are set correctly
+          3. Run \`curl https://cute-frangipane-efe657.netlify.app/.netlify/functions/selftest?debug=1\`
+          
+          ### Related Documents
+          - [TROUBLESHOOTING.md](../blob/main/TROUBLESHOOTING.md)
+          - [Chat Stack Runbook](../blob/main/docs/runbooks/chat-stack-selftest.md)
+          
+          **Workflow Run:** [${context.runId}](../actions/runs/${context.runId})`;
+          
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: title,
+            body: body,
+            labels: ['bug', 'production', 'selftest']
+          });
+
+    - name: Post success notification
+      if: success()
+      run: |
+        echo "🎉 Production selftest completed successfully!"
+        echo "All systems operational."

@@ -57,6 +57,11 @@ async function runSelfTest() {
       throw new Error(`selftest returned ok:false - ${selftestData.hint || selftestData.error}`);
     }
 
+    // 厳密な判定: sample が "pong" でなければ失敗
+    if (selftestData.sample !== "pong") {
+      throw new Error(`selftest returned unexpected sample: '${selftestData.sample}' (expected: 'pong')`);
+    }
+
     // 2. chat エンドポイントのテスト
     console.log("\n2️⃣ /chat エンドポイントをテスト中...");
     const chatResponse = await fetch(`${SITE_URL}/.netlify/functions/chat`, {
