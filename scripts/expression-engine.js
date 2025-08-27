@@ -13,6 +13,10 @@ class ExpressionEngine {
         this.telemetryBuffer = [];
         this.maxTelemetrySize = 100;
         
+        // Test mode settings
+        this.testMode = false;
+        this.nowFunction = () => Date.now();
+        
         // Simple sentiment dictionaries
         this.positiveWords = ['うれし', '嬉し', '最高', '素敵', 'いい', '良い', '楽し', 'やった', '成功', 'おめでと', '感謝', 'ありがと'];
         this.negativeWords = ['悲し', 'つら', '困', '失敗', 'ダメ', '無理', '難し', 'イライラ', 'むか', '怒', '最悪', '嫌'];
@@ -201,8 +205,8 @@ class ExpressionEngine {
                 expressionReasons.push(`negative words: ${negativeMatches.length}`);
             }
 
-            // g) Previous expression proximity (+4)
-            if (lastId && expression.group) {
+            // g) Previous expression proximity (+4) - skip in test mode
+            if (!this.testMode && lastId && expression.group) {
                 const lastExpression = this.expressions.find(e => e.id === lastId);
                 if (lastExpression?.group === expression.group) {
                     score += 4;
@@ -231,12 +235,14 @@ class ExpressionEngine {
                 }
             }
 
-            // Apply cooldown penalty
-            const now = Date.now();
-            const lastUsed = this.lastUpdateTime[expression.id];
-            if (lastUsed && (now - lastUsed) < expression.cooldown) {
-                score -= 5;
-                expressionReasons.push('cooldown penalty');
+            // Apply cooldown penalty - skip in test mode
+            if (!this.testMode) {
+                const now = this.nowFunction();
+                const lastUsed = this.lastUpdateTime[expression.id];
+                if (lastUsed && (now - lastUsed) < expression.cooldown) {
+                    score -= 5;
+                    expressionReasons.push('cooldown penalty');
+                }
             }
 
             scores.set(expression.id, score);
@@ -261,30 +267,32 @@ class ExpressionEngine {
             }
         }
 
-        // Check hysteresis and cooldown state
-        const now = Date.now();
-        const currentState = window.__exprState;
-        
-        if (currentState && currentState.until > now) {
-            // We're still in cooldown period
-            const currentExpression = this.expressions.find(e => e.id === currentState.id);
-            const currentScore = scores.get(currentState.id) || 0;
+        // Check hysteresis and cooldown state - skip in test mode
+        if (!this.testMode) {
+            const now = this.nowFunction();
+            const currentState = window.__exprState;
             
-            if (currentExpression && bestExpression) {
-                // Check if we should maintain current expression
-                const scoreDifference = bestScore - currentScore;
-                const sameGroup = currentExpression.group === bestExpression.group;
+            if (currentState && currentState.until > now) {
+                // We're still in cooldown period
+                const currentExpression = this.expressions.find(e => e.id === currentState.id);
+                const currentScore = scores.get(currentState.id) || 0;
                 
-                // Only switch if:
-                // 1. Different group with significant difference (>= 8 points)
-                // 2. Same group but massive difference (>= 15 points)
-                const significantDifference = sameGroup ? 15 : 8;
-                
-                if (scoreDifference < significantDifference) {
-                    // Keep current expression due to hysteresis
-                    bestExpression = currentExpression;
-                    bestScore = currentScore;
-                    reasons.set(currentState.id, [...(reasons.get(currentState.id) || []), 'hysteresis']);
+                if (currentExpression && bestExpression) {
+                    // Check if we should maintain current expression
+                    const scoreDifference = bestScore - currentScore;
+                    const sameGroup = currentExpression.group === bestExpression.group;
+                    
+                    // Only switch if:
+                    // 1. Different group with significant difference (>= 8 points)
+                    // 2. Same group but massive difference (>= 15 points)
+                    const significantDifference = sameGroup ? 15 : 8;
+                    
+                    if (scoreDifference < significantDifference) {
+                        // Keep current expression due to hysteresis
+                        bestExpression = currentExpression;
+                        bestScore = currentScore;
+                        reasons.set(currentState.id, [...(reasons.get(currentState.id) || []), 'hysteresis']);
+                    }
                 }
             }
         }
@@ -295,14 +303,17 @@ class ExpressionEngine {
             bestScore = 0;
         }
 
-        // Update state with new expression and cooldown
-        window.__exprState = {
-            id: bestExpression.id,
-            until: now + (bestExpression.cooldown || 1800)
-        };
-
-        // Update last use time
-        this.lastUpdateTime[bestExpression.id] = now;
+        // Update state with new expression and cooldown - skip in test mode
+        if (!this.testMode) {
+            const now = this.nowFunction();
+            window.__exprState = {
+                id: bestExpression.id,
+                until: now + (bestExpression.cooldown || 1800)
+            };
+            
+            // Update last use time
+            this.lastUpdateTime[bestExpression.id] = now;
+        }
 
         const result = {
             id: bestExpression.id,
@@ -366,6 +377,39 @@ class ExpressionEngine {
         }
         return { id: expression.id, score: 0, reasons: ['direct'] };
     }
+    
+    /**
+     * Enable or disable test mode
+     */
+    setTestMode(enabled) {
+        this.testMode = !!enabled;
+        if (enabled) {
+            this.resetState();
+        }
+    }
+    
+    /**
+     * Reset all state (for testing)
+     */
+    resetState() {
+        this.lastUpdateTime = {};
+        this.telemetryBuffer = [];
+        if (typeof window !== 'undefined') {
+            window.__exprState = null;
+            window.__lastExpressionId = null;
+        }
+    }
+    
+    /**
+     * Set custom now function (for testing)
+     */
+    setNow(fn) {
+        if (typeof fn === 'function') {
+            this.nowFunction = fn;
+        } else {
+            this.nowFunction = () => Date.now();
+        }
+    }
 }
 
 // Create and export global instance
@@ -380,15 +424,37 @@ if (typeof document !== 'undefined') {
     }
 }
 
+// Export test mode functions for easier access  
+function setTestMode(enabled) {
+    return expressionEngine.setTestMode(enabled);
+}
+
+function resetState() {
+    return expressionEngine.resetState();
+}
+
+function setNow(fn) {
+    return expressionEngine.setNow(fn);
+}
+
 // Export for module usage
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { ExpressionEngine, expressionEngine };
+    module.exports = { 
+        ExpressionEngine, 
+        expressionEngine,
+        setTestMode,
+        resetState,
+        setNow
+    };
 }
 
 // Browser global
 if (typeof window !== 'undefined') {
     window.expressionEngine = expressionEngine;
     window.ExpressionEngine = ExpressionEngine;
+    window.setTestMode = setTestMode;
+    window.resetState = resetState;
+    window.setNow = setNow;
     
     // Debug utility function
     window.dumpExpressions = function() {

@@ -16,11 +16,19 @@ const engineCode = readFileSync(enginePath, 'utf-8');
 // Create a mock window object for the engine
 global.window = {
     __exprState: null,
-    __debugExpressions: false
+    __debugExpressions: false,
+    __lastExpressionId: null
 };
 
 // Evaluate the engine code
 eval(engineCode);
+
+// Get test mode functions (they should be available on window after eval)
+const testFunctions = {
+    setTestMode: (enabled) => global.window.setTestMode(enabled),
+    resetState: () => global.window.resetState(),
+    setNow: (fn) => global.window.setNow(fn)
+};
 
 // Load fixtures
 const fixturesPath = join(__dirname, 'expressions.fixtures.json');
@@ -42,6 +50,10 @@ class ExpressionTester {
         console.log('🧪 Expression Engine Golden Tests\n');
         console.log('═══════════════════════════════════════\n');
 
+        // Enable test mode and set fixed time
+        testFunctions.setTestMode(true);
+        testFunctions.setNow(() => 1234567890);
+        
         // Initialize the engine with expressions
         global.window.expressionEngine.expressions = expressions;
         global.window.expressionEngine.initialized = true;
@@ -58,6 +70,8 @@ class ExpressionTester {
 
         // Run tests
         for (const [index, fixture] of fixtures.entries()) {
+            // Reset state before each test
+            testFunctions.resetState();
             await this.testFixture(fixture, index + 1);
         }
 
@@ -72,8 +86,6 @@ class ExpressionTester {
         const { text, expect } = fixture;
         
         try {
-            // Reset state between tests
-            global.window.__exprState = null;
             
             // Run expression selection
             const result = global.window.expressionEngine.select({
