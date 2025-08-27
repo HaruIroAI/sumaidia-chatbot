@@ -12,6 +12,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="company-knowledge-base.js"></script>
     <script src="conversation-patterns.js"></script>
+    <script src="scripts/expression-engine.js"></script>
     <style>
         body { 
             font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'YuGothic', 'Meiryo', sans-serif;
@@ -1004,20 +1005,27 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             }
         }
         
-        // Detect emotion from response
+        // Detect emotion from response using Expression Engine
         function detectEmotion(response) {
-            if (response.includes('嬉しい') || response.includes('✨') || response.includes('オッケー')) {
-                return 'happy';
-            } else if (response.includes('考え') || response.includes('うーん')) {
-                return 'thinking';
-            } else if (response.includes('困った') || response.includes('ごめん')) {
-                return 'confused';
-            } else if (response.includes('💕') || response.includes('かわいい')) {
-                return 'wink';
-            } else if (response.includes('すごい') || response.includes('！！')) {
-                return 'excited';
-            }
-            return 'normal';
+            // Use the expression engine to select appropriate expression
+            const expression = expressionEngine.select(response, 'assistant');
+            
+            // Map expression IDs to existing emotion classes for backward compatibility
+            const emotionMap = {
+                'happy': 'happy',
+                'thinking': 'thinking',
+                'confused': 'confused',
+                'wink': 'wink',
+                'excited': 'excited',
+                'shy': 'shy',
+                'sleepy': 'sleepy',
+                'surprised': 'surprised',
+                'motivated': 'motivated',
+                'neutral': 'normal'
+            };
+            
+            // Return mapped emotion or default to 'normal'
+            return emotionMap[expression.id] || 'normal';
         }
         
         // Analyze context from user message
@@ -1175,6 +1183,18 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             avatars.forEach(avatar => {
                 avatar.className = `smaichan-avatar smaichan-avatar-${expression}`;
             });
+            
+            // Hook for future expression engine enhancements
+            if (window.expressionEngine && window.expressionEngine.getExpressionById) {
+                const expData = expressionEngine.getExpressionById(expression);
+                if (expData) {
+                    // Future: Update avatar image source dynamically
+                    // avatars.forEach(avatar => {
+                    //     avatar.style.backgroundImage = `url('${expData.file}')`;
+                    // });
+                    console.debug(`Expression changed to: ${expression} (${expData.file})`);
+                }
+            }
         }
         
         // Add message to chat
