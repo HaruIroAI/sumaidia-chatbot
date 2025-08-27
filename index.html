@@ -632,6 +632,10 @@
     </div>
 
     <script>
+        // Runtime Operation Toggles (can be modified via console for debugging)
+        window.__useModelHint = true;    // Use [[emo:]] tags from model when available
+        window.__useStyleRender = true;  // Apply style rendering to responses
+        
         // API Mode Management
         let currentMode = 'offline';
         let apiKey = localStorage.getItem('smaichan_api_key') || '';
@@ -973,12 +977,17 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 let emotion = null;
                 let intensity = null;
                 
-                // Extract emotion tag [[emo:id]] from the end of text
-                const emoTag = (responseContent.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i) || [])[1];
-                const cleanContent = emoTag ? responseContent.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '') : responseContent;
+                // Extract emotion tag [[emo:id]] from the end of text (if toggle enabled)
+                let emoTag = null;
+                let cleanContent = responseContent;
+                
+                if (window.__useModelHint) {
+                    emoTag = (responseContent.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i) || [])[1];
+                    cleanContent = emoTag ? responseContent.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '') : responseContent;
+                }
                 
                 // Use extracted emotion tag if found
-                if (emoTag) {
+                if (emoTag && window.__useModelHint) {
                     emotion = emoTag;
                 }
                 
@@ -1336,9 +1345,9 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 }
             }
             
-            // Apply style rendering based on emotion
+            // Apply style rendering based on emotion (if toggle enabled)
             let styledText = responseText;
-            if (window.renderWithStyle) {
+            if (window.__useStyleRender && window.renderWithStyle) {
                 styledText = window.renderWithStyle(responseText, { emotionId: finalEmotion });
             }
             
