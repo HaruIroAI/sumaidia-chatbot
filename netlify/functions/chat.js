@@ -8,7 +8,7 @@ export async function handler(event) {
   };
 
   try {
-    const { messages = [] } = JSON.parse(event.body || "{}");
+    const body = JSON.parse(event.body || "{}");
     const apiKey = process.env.OPENAI_API_KEY;
     const model = process.env.OPENAI_MODEL || "gpt-5-mini";
     
@@ -20,17 +20,34 @@ export async function handler(event) {
       };
     }
 
-    // Responses API用のリクエストボディ
-    const requestBody = {
-      model: model,
-      input: messages.map(m => ({ 
-        role: m.role, 
-        content: typeof m.content === 'string' 
-          ? [{ type: "input_text", text: m.content }]
-          : m.content
-      })),
-      max_output_tokens: 500
-    };
+    // Check for raw mode
+    const url = new URL(event.rawUrl || event.url || 'http://localhost');
+    const rawMode = url.searchParams.get('raw') === '1';
+
+    // Prepare request body
+    let requestBody;
+    
+    if (rawMode && body.input) {
+      // Raw mode: pass input directly
+      requestBody = {
+        model: model,
+        input: body.input,
+        max_output_tokens: body.max_output_tokens || 500
+      };
+    } else {
+      // Normal mode: process messages
+      const { messages = [] } = body;
+      requestBody = {
+        model: model,
+        input: messages.map(m => ({ 
+          role: m.role, 
+          content: typeof m.content === 'string' 
+            ? [{ type: "input_text", text: m.content }]
+            : m.content
+        })),
+        max_output_tokens: 500
+      };
+    }
 
     // OpenAI Responses APIを呼び出し
     const response = await fetch("https://api.openai.com/v1/responses", {
