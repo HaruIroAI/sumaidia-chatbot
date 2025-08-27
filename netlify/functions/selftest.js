@@ -15,16 +15,37 @@ export async function handler() {
       headers:{ "content-type":"application/json", "authorization":`Bearer ${apiKey}` },
       body: JSON.stringify({ model, input, max_output_tokens: 30 })
     });
-    const data = await r.json();
 
-    if (!r.ok) return { statusCode:500, headers, body: JSON.stringify({ ok:false, model, status:r.status, message:data?.error?.message||data }) };
+    const raw = await r.text(); // ★ raw で受ける
+    let data = null;
+    try { data = JSON.parse(raw); } catch {}
 
-    let text = data.output_text || "";
-    if (!text && Array.isArray(data.output)) {
-      text = data.output.flatMap(p=>p?.content??[]).filter(c=>c?.type==="output_text").map(c=>c.text).join("").trim();
-    }
+    const extract = (d) => {
+      if (!d) return "";
+      if (typeof d.output_text === "string" && d.output_text.trim()) return d.output_text.trim();
+      if (Array.isArray(d.output)) {
+        const texts = [];
+        for (const p of d.output) {
+          const parts = Array.isArray(p?.content) ? p.content : [];
+          for (const c of parts) {
+            if ((c?.type === "output_text" || c?.type === "text") && typeof c.text === "string") {
+              texts.push(c.text);
+            }
+          }
+        }
+        return texts.join("").trim();
+      }
+      return "";
+    };
 
-    return { statusCode:200, headers, body: JSON.stringify({ ok: text.trim().toLowerCase()==="pong", model: data.model||model, sample: text }) };
+    const text = extract(data);
+    const ok = text.trim().toLowerCase() === "pong";
+
+    return {
+      statusCode: r.ok && ok ? 200 : 500,
+      headers,
+      body: JSON.stringify({ ok, model: (data?.model || model), sample: text, debug: !ok ? { status:r.status, raw } : undefined })
+    };
   } catch (e) {
     return { statusCode:500, headers, body: JSON.stringify({ ok:false, error:String(e?.message||e) }) };
   }
