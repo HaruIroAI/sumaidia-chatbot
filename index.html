@@ -511,27 +511,27 @@
         }
         
         .smaichan-avatar-normal {
-            background-image: url('ロゴ/スマイちゃん.png');
+            background-image: url('logo/smaichan.png');
         }
         
         .smaichan-avatar-happy {
-            background-image: url('ロゴ/スマイちゃん_happy.png');
+            background-image: url('logo/smaichan_happy.png');
         }
         
         .smaichan-avatar-thinking {
-            background-image: url('ロゴ/スマイちゃん_thinking.png');
+            background-image: url('logo/smaichan_thinking.png');
         }
         
         .smaichan-avatar-confused {
-            background-image: url('ロゴ/スマイちゃん_confused.png');
+            background-image: url('logo/smaichan_confused.png');
         }
         
         .smaichan-avatar-wink {
-            background-image: url('ロゴ/スマイちゃん_wink.png');
+            background-image: url('logo/smaichan_wink.png');
         }
         
         .smaichan-avatar-excited {
-            background-image: url('ロゴ/スマイちゃん_excited.png');
+            background-image: url('logo/smaichan_excited.png');
         }
     </style>
 </head>
@@ -1195,10 +1195,14 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 response = await callChatGPT(message);
             }
             
-            if (!response) {
+            if (response == null) {
                 // Use offline response
                 response = window.generateResponse ? window.generateResponse(message) : 
                     '素敵なメッセージありがとう〜！印刷のこと何でも聞いてね💕';
+            }
+            
+            if (typeof response === 'string' && response.trim() === '') {
+                response = '了解だよー！もう一度、要件を短く教えてもらえる？';
             }
             
             // Remove typing indicator
