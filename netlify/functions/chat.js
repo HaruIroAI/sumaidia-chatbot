@@ -28,7 +28,7 @@ export async function handler(event) {
       },
       body: JSON.stringify({
         model,
-        messages: msgs,
+        input: msgs,
         max_output_tokens: 300      // ← 必須最小セットのみ
       }),
     });
