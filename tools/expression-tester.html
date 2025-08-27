@@ -296,13 +296,25 @@
             }
             
             try {
+                // Check for emotion tag [[emo:id]]
+                const emoMatch = input.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i);
+                let cleanText = input;
+                let forcedEmotion = null;
+                
+                if (emoMatch) {
+                    forcedEmotion = emoMatch[1];
+                    cleanText = input.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '');
+                }
+                
                 // Analyze the text
-                const result = window.expressionEngine.select({
-                    text: input,
-                    role: 'assistant',
-                    contexts: analyzeContext(input),
-                    lastId: window.__lastExpressionId || null
-                });
+                const result = forcedEmotion 
+                    ? { id: forcedEmotion, score: 999, reasons: ['forced by [[emo:' + forcedEmotion + ']] tag'] }
+                    : window.expressionEngine.select({
+                        text: cleanText,
+                        role: 'assistant',
+                        contexts: analyzeContext(cleanText),
+                        lastId: window.__lastExpressionId || null
+                    });
                 
                 // Update last expression ID
                 window.__lastExpressionId = result.id;
@@ -313,6 +325,13 @@
                 
                 // Build output HTML
                 let html = '<div class="result-card">';
+                
+                // Show if emotion was forced by tag
+                if (forcedEmotion) {
+                    html += '<div style="background: #48bb78; color: white; padding: 8px; border-radius: 4px; margin-bottom: 10px;">';
+                    html += '⚡ Emotion forced by [[emo:' + forcedEmotion + ']] tag';
+                    html += '</div>';
+                }
                 
                 // Expression ID with avatar
                 html += '<div class="expression-id">';

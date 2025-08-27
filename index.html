@@ -889,7 +889,13 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
 1. 上記の関連情報を活用して具体的に回答
 2. 数字（価格・納期）は正確に伝える
 3. 不明な点は「確認しますね〜！」で対応
-4. 楽しく分かりやすく、でもプロ意識を持って`;
+4. 楽しく分かりやすく、でもプロ意識を持って
+
+【重要な出力ルール】
+返信テキストの末尾に、次の一覧から1つだけ選んで '[[emo:ID]]' を必ず付与してください。
+許可ID: neutral, happy, excited, grateful, thinking, confused, sad, angry, worried, surprised, wink, shy, sleepy, motivated, laughing, cool, love, star_eyes, peace, determined, playful, proud, curious, confident, embarrassed, focused, relaxed, mischievous, supportive, sparkle
+例: こんにちは！何かお手伝いできることはありますか？[[emo:happy]]
+注意: 本文には '[[emo:' を含めないでください。出力は自然な文章 + 最後に1回だけタグを付けてください。`;
                 
                 // 5. メッセージ配列を構築
                 const messages = [
@@ -966,23 +972,37 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 let emotion = null;
                 let intensity = null;
                 
+                // Extract emotion tag [[emo:id]] from the end of text
+                const emoTag = (responseContent.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i) || [])[1];
+                const cleanContent = emoTag ? responseContent.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '') : responseContent;
+                
+                // Use extracted emotion tag if found
+                if (emoTag) {
+                    emotion = emoTag;
+                }
+                
                 // メッセージオブジェクトに追加情報が含まれているか確認
-                if (message.emotion) {
+                if (!emotion && message.emotion) {
                     emotion = message.emotion;
                     intensity = message.intensity || 0.8;
                 }
                 
-                // コンテンツ自体がJSON形式の場合も試す
-                try {
-                    const parsedContent = JSON.parse(responseContent);
-                    if (parsedContent.reply_text) {
-                        responseContent = parsedContent.reply_text;
-                        emotion = parsedContent.emotion || emotion;
-                        intensity = parsedContent.intensity || intensity;
+                // コンテンツ自体がJSON形式の場合も試す（emotion tagがない場合のみ）
+                if (!emotion) {
+                    try {
+                        const parsedContent = JSON.parse(cleanContent);
+                        if (parsedContent.reply_text) {
+                            responseContent = parsedContent.reply_text;
+                            emotion = parsedContent.emotion || emotion;
+                            intensity = parsedContent.intensity || intensity;
+                        }
+                    } catch (e) {
+                        // JSONパースエラーは無視（通常のテキストとして扱う）
                     }
-                } catch (e) {
-                    // JSONパースエラーは無視（通常のテキストとして扱う）
                 }
+                
+                // Always return clean content without emotion tag
+                responseContent = cleanContent;
                 
                 // 感情情報がある場合は返す
                 if (emotion) {

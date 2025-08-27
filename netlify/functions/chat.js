@@ -125,21 +125,36 @@ export async function handler(event) {
       };
     }
 
+    // Extract emotion tag if present
+    const emoMatch = text.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i);
+    let cleanText = text;
+    let emotionId = null;
+    
+    if (emoMatch) {
+      emotionId = emoMatch[1];
+      cleanText = text.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '');
+    }
+    
     // 正常な返却形式
     const responseBody = {
       choices: [{
         message: {
           role: "assistant",
-          content: text
+          content: cleanText  // Return clean text without emotion tag
         },
         finish_reason: "stop"
       }],
       usage: data.usage || {}
     };
 
+    const responseHeaders = { ...headers, "x-model": data.model || model };
+    if (emotionId) {
+      responseHeaders["x-emo"] = emotionId;
+    }
+
     return {
       statusCode: 200,
-      headers: { ...headers, "x-model": data.model || model },
+      headers: responseHeaders,
       body: JSON.stringify(responseBody)
     };
 
