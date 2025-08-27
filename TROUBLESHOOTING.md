@@ -25,6 +25,23 @@ Responses API の互換性問題に遭遇した際の即時復旧ガイド
 | **環境変数ミス（例：OPENI_MODEL）** | 正：**`OPENAI_MODEL`**。誤綴りを削除 |
 | **do not have access to model** | モデル権限/有効化を確認。暫定で gpt-4o-mini へ切替可 |
 
+### Chatが空返答/不安定なとき
+- /selftest を実行： `/.netlify/functions/selftest` （期待: `{ ok:true, sample:"pong" }`）
+- ok:false の場合:
+  - `/.netlify/functions/selftest?debug=1` で raw を確認
+  - Functions logs で selftest / chat を確認（Netlifyダッシュボード）
+  - 必要に応じて Production deploy を "Deploy without cache"
+- /chat?raw=1 が 5xx/429 の場合：
+  - chat.js raw 経路のリトライ（指数バックオフ）を確認
+  - response_format / text.format / max_output_tokens を確認
+- x-model ヘッダーで実モデルを確認（例: gpt-5-mini-2025-08-07）
+
+### Responses API パラメータ差分メモ
+- `max_output_tokens` を使用（旧: `max_tokens` は不可）
+- `messages` ではなく `input`（`{role, content[{type:'input_text', text}]}`）
+- `presence_penalty` / `temperature` はモデルにより非対応あり
+- `text.format` は `response_format` ではなく `text.format` に指定
+
 ## 確認の順番
 
 1. **Netlify** → **Site settings** → **Environment variables**

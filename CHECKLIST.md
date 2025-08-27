@@ -10,6 +10,7 @@
 
 ### 🔑 環境変数チェック
 
+- [ ] Netlify 環境変数（OPENAI_API_KEY 必須 / OPENAI_MODEL 任意）確認
 - [ ] `OPENAI_API_KEY` が設定されている
   ```bash
   # Netlify: Site settings → Environment variables
@@ -54,6 +55,7 @@
 - [ ] Netlify ビルドログでエラーがないか確認
   - Deploys → 最新のデプロイ → View deploy log
 
+- [ ] /selftest が ok:true, sample:'pong'
 - [ ] `/selftest` で ok:true を確認
   ```javascript
   // ブラウザのコンソールで実行
@@ -83,6 +85,8 @@
   // 期待値: status 200, choices[0].message.content に "pong"
   ```
 
+- [ ] x-model ヘッダーでモデル確認
+- [ ] /chat（通常）と /chat?raw=1 の動作確認（"pong" テスト）
 - [ ] Network タブで確認
   - レスポンスヘッダーの `x-model` が正しいモデル名か
   - レスポンスヘッダーの `x-backend` が `openai` か
@@ -90,6 +94,8 @@
 
 ### 📊 本番動作確認
 
+- [ ] favicon.ico が 200
+- [ ] Tailwind CDN 警告が出ていない（CLIまたはPostCSS導入）
 - [ ] 実際のチャットボット UI から会話をテスト
   - 基本的な挨拶が返ってくるか
   - エラーが表示されないか
@@ -101,6 +107,8 @@
 
 ### 📚 ドキュメント更新
 
+- [ ] Deploy without cache を使った再デプロイ手順をチーム共有
+- [ ] 重大修正時は PR → Deploy Preview → 3テスト合格後にマージ
 - [ ] 変更内容が大きい場合は `TROUBLESHOOTING.md` を更新
 - [ ] 新しいエラーパターンを発見したら記録
 - [ ] 前回の Postmortem を参照（`docs/` または `TROUBLESHOOTING.md`）
