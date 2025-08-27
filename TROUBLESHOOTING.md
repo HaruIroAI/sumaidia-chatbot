@@ -86,6 +86,117 @@ curl http://localhost:8888/.netlify/functions/selftest
 curl https://cute-frangipane-efe657.netlify.app/.netlify/functions/selftest
 ```
 
+## Responses API要点まとめ
+
+### ✅ 正しいパラメータ
+- **`input`**: メッセージ配列（messagesではない）
+- **`max_output_tokens`**: 最大出力トークン数（max_tokensではない）
+- **`text: { format: { type: 'text' }, verbosity: 'low' }`**: テキスト形式指定
+- **`reasoning: { effort: 'low' }`**: 推論レベル指定
+
+### ❌ 非対応パラメータ
+- `messages` → `input` を使う
+- `max_tokens` → `max_output_tokens` を使う
+- `response_format` → `text.format` を使う
+- `temperature`, `presence_penalty`, `frequency_penalty` → 削除（一部モデルで非対応）
+
+## 自己診断フロー
+
+### 1. 基本診断（30秒以内）
+```bash
+# Step 1: selftest確認
+curl https://cute-frangipane-efe657.netlify.app/.netlify/functions/selftest
+
+# 期待値: {"ok":true,"expected":"pong","sample":"pong","model":"gpt-5-mini"}
+
+# NGの場合はデバッグモード
+curl "https://cute-frangipane-efe657.netlify.app/.netlify/functions/selftest?debug=1"
+```
+
+### 2. 詳細診断（Functions Logs）
+1. Netlify Dashboard → Functions → selftest/chat → View logs
+2. エラーメッセージをコピー
+3. 上記のエラー対処一覧と照合
+
+### 3. 再デプロイ（キャッシュクリア）
+- Netlify Dashboard → Deploys → Deploy site → **Clear cache and deploy site**
+- 約2-3分待ってから再度selftest実行
+
+## 障害時の対応
+
+### 5xx/429エラーの対処
+
+#### 一時的対処
+```javascript
+// raw=1&strict=1モードで再試行（フォールバック無効）
+fetch('/.netlify/functions/chat?raw=1&strict=1', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    input: [
+      { role: 'system', content: [{ type: 'input_text', text: 'テスト' }] },
+      { role: 'user', content: [{ type: 'input_text', text: 'ping' }] }
+    ],
+    max_output_tokens: 16
+  })
+});
+```
+
+#### 指数バックオフ実装例
+```javascript
+async function retryWithBackoff(fn, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i === maxRetries - 1) throw e;
+      await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+    }
+  }
+}
+```
+
+## extractTextの詳細
+
+### 抽出優先順位
+```javascript
+// netlify/functions/_extractText.js の実装
+export function extractText(data) {
+  // 1. output配列から抽出（Responses API形式）
+  if (Array.isArray(data?.output)) {
+    for (const item of data.output) {
+      if (item?.type === "output_text" && typeof item.text === "string") {
+        return item.text;
+      }
+      if (Array.isArray(item?.content)) {
+        for (const content of item.content) {
+          if (content?.type === "output_text" && typeof content.text === "string") {
+            return content.text;
+          }
+        }
+      }
+    }
+  }
+  
+  // 2. choices形式（Chat Completions互換）
+  if (data?.choices?.[0]?.message?.content) {
+    return data.choices[0].message.content;
+  }
+  
+  // 3. トップレベルのoutput_text
+  if (typeof data?.output_text === "string") {
+    return data.output_text;
+  }
+  
+  // 4. text.valueがある場合
+  if (data?.text?.value) {
+    return data.text.value;
+  }
+  
+  return "";
+}
+```
+
 ## Responses APIでの典型エラーと修正要点
 
 ### よく発生するエラーパターン

@@ -1,5 +1,44 @@
 # CHECKLIST.md
 
+## 出荷前チェックリスト
+
+### 🎯 3テスト必須確認
+
+1. **selftest** （厳密判定）
+```javascript
+// 必ず {ok:true, sample:'pong'} を確認
+fetch('/.netlify/functions/selftest').then(r=>r.json()).then(console.log);
+```
+
+2. **通常モード**
+```javascript
+// "pong" が返ることを確認
+fetch('/.netlify/functions/chat',{method:'POST',headers:{'content-type':'application/json'},
+  body: JSON.stringify({messages:[
+    {role:'system',content:'「pong」と1語だけ返す'},
+    {role:'user',content:'ping'}
+  ]})}).then(r=>r.text()).then(console.log);
+```
+
+3. **rawモード**  
+```javascript
+// "pong" が返ることを確認
+fetch('/.netlify/functions/chat?raw=1',{method:'POST',headers:{'content-type':'application/json'},
+  body: JSON.stringify({input:[
+    {role:'system',content:[{type:'input_text',text:'「pong」と1語だけ返す'}]},
+    {role:'user',content:[{type:'input_text',text:'ping'}]}
+  ],max_output_tokens: 16})}).then(r=>r.text()).then(console.log);
+```
+
+### 🔍 x-model確認
+- [ ] レスポンスヘッダーに `x-model` が含まれている
+- [ ] 値が期待するモデル名（例: gpt-5-mini）と一致
+
+### 🎨 UI/静的アセット確認
+- [ ] favicon.ico が200を返す（404ではない）
+- [ ] Tailwind CSS警告がコンソールに出ていない
+- [ ] ロゴ画像が正しく表示される
+
 ## 変更時に必ず実行するセルフテスト手順
 
 ### 🔧 変更前チェック
@@ -19,6 +58,12 @@
 - [ ] `OPENAI_MODEL` が正しく設定されている（オプション）
   - デフォルト: `gpt-5-mini`
   - 誤字チェック（OPENI_MODEL などの typo がないか）
+
+- [ ] **Scope設定が "All deploy contexts"** になっている
+  - Production
+  - Deploy Previews
+  - Branch deploys
+  すべてで有効になっていることを確認
 
 ### 📝 コード変更チェック
 
@@ -130,8 +175,45 @@ netlify logs:function chat
 # Netlify UI: Site settings → Environment variables
 ```
 
+## 障害時チェックリスト
+
+### 🚨 初動対応（1分以内）
+
+1. **selftest実行**
+   ```bash
+   curl https://cute-frangipane-efe657.netlify.app/.netlify/functions/selftest
+   ```
+   - ok:false → 障害確定
+
+2. **エラータイプ判定**
+   - 5xx → サーバーエラー
+   - 429 → レート制限
+   - 4xx → パラメータエラー
+
+### 🔧 復旧手順（3分以内）
+
+1. **キャッシュクリア再デプロイ**
+   - Netlify → Deploys → Deploy site → Clear cache and deploy site
+
+2. **環境変数再確認**
+   - OPENAI_API_KEY存在確認
+   - Scope確認（All deploy contexts）
+
+3. **raw=1&strict=1モード試行**
+   ```javascript
+   fetch('/.netlify/functions/chat?raw=1&strict=1', { /* ... */ })
+   ```
+
+### 📊 ログ収集（5分以内）
+
+- [ ] Functions Logsのスクリーンショット
+- [ ] selftestの?debug=1結果
+- [ ] ブラウザコンソールエラー
+- [ ] ネットワークタブのレスポンス
+
 ## トラブル時の連絡先
 
 - [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) を確認
 - [Responses API 互換性ガイド](./docs/responses-api-compat.md) を参照
+- [運用手順書](./docs/runbooks/chat-stack-selftest.md) で5分以内復旧
 - Netlify サポート: https://answers.netlify.com/
