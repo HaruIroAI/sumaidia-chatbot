@@ -1,0 +1,21 @@
+name: Production Selftest
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit production selftest
+        run: |
+          set -e
+          URL="https://cute-frangipane-efe657.netlify.app/.netlify/functions/selftest"
+          echo "GET $URL"
+          RES=$(curl -sS -w "\n%{http_code}" "$URL")
+          BODY=$(echo "$RES" | head -n1)
+          CODE=$(echo "$RES" | tail -n1)
+          echo "HTTP $CODE"
+          echo "Body: $BODY"
+          echo "$BODY" | jq -e '.ok == true and .sample == "pong"' >/dev/null
