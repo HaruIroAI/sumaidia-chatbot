@@ -14,6 +14,7 @@
     <script src="company-knowledge-base.js"></script>
     <script src="conversation-patterns.js"></script>
     <script src="scripts/expression-engine.js"></script>
+    <script type="module" src="scripts/style-renderer.js"></script>
     <style>
         body { 
             font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'YuGothic', 'Meiryo', sans-serif;
@@ -1318,8 +1319,14 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 finalEmotion = id;
             }
             
-            addMessage(responseText, false, finalEmotion);
-            conversationManager.addMessage(responseText, false); // ConversationManagerに追加
+            // Apply style rendering based on emotion
+            let styledText = responseText;
+            if (window.renderWithStyle) {
+                styledText = window.renderWithStyle(responseText, { emotionId: finalEmotion });
+            }
+            
+            addMessage(styledText, false, finalEmotion);
+            conversationManager.addMessage(responseText, false); // ConversationManagerに追加（元のテキストを保存）
         });
         
         // Three.js 3D Logo
