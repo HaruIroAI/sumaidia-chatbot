@@ -18,13 +18,39 @@ export async function handler(event) {
 
   // Extract text from various response formats
   function extractText(data) {
-    // Responses API format
-    const t1 = data?.output?.[0]?.content?.find(c => c.type === 'output_text')?.text;
+    // Check all output items for text content
+    if (data?.output && Array.isArray(data.output)) {
+      for (const item of data.output) {
+        // Direct text property
+        if (item?.text && typeof item.text === 'string') {
+          return item.text.trim();
+        }
+        // Content array
+        if (item?.content && Array.isArray(item.content)) {
+          const textContent = item.content.find(c => c.type === 'output_text' || c.type === 'text');
+          if (textContent?.text) {
+            return textContent.text.trim();
+          }
+        }
+      }
+    }
+    
     // Chat compatible wrap format (what /chat returns)
-    const t2 = data?.choices?.[0]?.message?.content;
+    if (data?.choices?.[0]?.message?.content) {
+      return data.choices[0].message.content.trim();
+    }
+    
     // Legacy field fallback
-    const t3 = data?.output_text;
-    return (t1 ?? t2 ?? t3 ?? '').trim();
+    if (typeof data?.output_text === 'string') {
+      return data.output_text.trim();
+    }
+    
+    // Text field in response
+    if (data?.text?.value) {
+      return data.text.value.trim();
+    }
+    
+    return '';
   }
 
   // Responses API compatible request
@@ -40,7 +66,7 @@ export async function handler(event) {
         content: [{ type: 'input_text', text: 'ping' }] 
       }
     ],
-    max_output_tokens: 16
+    max_output_tokens: 100
   };
 
   try {
