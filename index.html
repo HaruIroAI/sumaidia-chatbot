@@ -956,7 +956,41 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 }
                 
                 const data = await response.json();
-                return data.choices[0].message.content;
+                
+                // JSONレスポンスの解析を試みる
+                const message = data.choices[0].message;
+                let responseContent = message.content;
+                let emotion = null;
+                let intensity = null;
+                
+                // メッセージオブジェクトに追加情報が含まれているか確認
+                if (message.emotion) {
+                    emotion = message.emotion;
+                    intensity = message.intensity || 0.8;
+                }
+                
+                // コンテンツ自体がJSON形式の場合も試す
+                try {
+                    const parsedContent = JSON.parse(responseContent);
+                    if (parsedContent.reply_text) {
+                        responseContent = parsedContent.reply_text;
+                        emotion = parsedContent.emotion || emotion;
+                        intensity = parsedContent.intensity || intensity;
+                    }
+                } catch (e) {
+                    // JSONパースエラーは無視（通常のテキストとして扱う）
+                }
+                
+                // 感情情報がある場合は返す
+                if (emotion) {
+                    return {
+                        content: responseContent,
+                        emotion: emotion,
+                        intensity: intensity
+                    };
+                }
+                
+                return responseContent;
                 
             } catch (error) {
                 console.error('ChatGPT API Error:', error);
@@ -1209,9 +1243,20 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             messagesContainer.removeChild(typingDiv);
             
             // Add response
-            const emotion = detectEmotion(response);
-            addMessage(response, false, emotion);
-            conversationManager.addMessage(response, false); // ConversationManagerに追加
+            let responseText = response;
+            let responseEmotion = null;
+            
+            // レスポンスがオブジェクトの場合（JSON形式の応答）
+            if (response && typeof response === 'object') {
+                responseText = response.content || response;
+                responseEmotion = response.emotion;
+            }
+            
+            // 感情の決定：JSONの感情情報を優先、なければテキストから検出
+            const finalEmotion = responseEmotion || detectEmotion(responseText);
+            
+            addMessage(responseText, false, finalEmotion);
+            conversationManager.addMessage(responseText, false); // ConversationManagerに追加
         });
         
         // Three.js 3D Logo

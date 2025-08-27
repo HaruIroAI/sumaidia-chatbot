@@ -13,11 +13,32 @@ export async function handler(event) {
       return { statusCode: 500, headers, body: JSON.stringify({ error:"Missing OPENAI_API_KEY" }) };
     }
 
+    // System promptを追加してJSON形式での応答を促す
+    const systemPrompt = {
+      role: "system",
+      content: [{
+        type: "input_text",
+        text: `あなたはスマイちゃん、18歳のギャル系印刷アシスタントです。
+以下のJSON形式で応答してください：
+{
+  "reply_text": "実際の返答内容",
+  "emotion": "normal|happy|thinking|confused|excited|shy|sleepy|surprised|motivated",
+  "intensity": 0.0～1.0の数値,
+  "intent": "greeting|question|confirmation|suggestion|error|other"
+}
+ただし、JSONパースに失敗した場合は通常のテキスト応答でも構いません。`
+      }]
+    };
+    
     // Responses API の input（構造化）
-    const input = (messages || []).map(m => ({
+    const userMessages = (messages || []).map(m => ({
       role: m.role,
       content: [{ type: "input_text", text: String(m.content ?? "") }]
     }));
+    
+    // システムプロンプトが既に含まれていない場合は追加
+    const hasSystemPrompt = userMessages.some(m => m.role === "system");
+    const input = hasSystemPrompt ? userMessages : [systemPrompt, ...userMessages];
 
     // OpenAI 呼び出し（最小パラメータのみ）
     const r = await fetch("https://api.openai.com/v1/responses", {
@@ -63,8 +84,37 @@ export async function handler(event) {
       text = "了解だよー！少し混雑してるかも。要件をもう一度だけ教えてくれる？";
     }
 
+    // JSONレスポンスの解析を試みる
+    let parsedResponse = null;
+    let finalContent = text;
+    
+    try {
+      // レスポンスがJSONの場合、パースを試みる
+      parsedResponse = JSON.parse(text);
+      
+      // JSONが成功した場合、reply_textを本文として使用
+      if (parsedResponse.reply_text) {
+        finalContent = parsedResponse.reply_text;
+      }
+    } catch (e) {
+      // JSONパースに失敗した場合は、元のテキストをそのまま使用
+      // エラーは無視（通常のテキストレスポンスとして扱う）
+    }
+
     const payload = {
-      choices: [{ message: { role: "assistant", content: text }, finish_reason: "stop" }],
+      choices: [{ 
+        message: { 
+          role: "assistant", 
+          content: finalContent,
+          // JSONレスポンスの場合は追加情報を含める
+          ...(parsedResponse && {
+            emotion: parsedResponse.emotion,
+            intensity: parsedResponse.intensity,
+            intent: parsedResponse.intent
+          })
+        }, 
+        finish_reason: "stop" 
+      }],
       usage: data.usage
     };
 
