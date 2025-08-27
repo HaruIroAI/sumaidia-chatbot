@@ -31,7 +31,6 @@ export async function handler(event) {
         input,
         temperature: 0.7,
         max_output_tokens: 300,   // ← ここを修正！
-        presence_penalty: 0.3,
       }),
     });
 
