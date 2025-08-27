@@ -30,7 +30,7 @@ export async function handler(event) {
         model,
         input,
         temperature: 0.7,
-        max_completion_tokens: 300,   // ← gpt-5系は max_tokens ではなくこちら
+        max_output_tokens: 300,   // ← ここを修正！
         presence_penalty: 0.3,
       }),
     });
