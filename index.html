@@ -853,10 +853,10 @@
         async function callChatGPT(userMessage) {
             try {
                 // 1. 文脈を分析
-                const contexts = analyzeContext(message);
+                const contexts = analyzeContext(userMessage);
                 
                 // 2. 関連情報を収集
-                const relevantInfo = gatherRelevantInfo(contexts, message);
+                const relevantInfo = gatherRelevantInfo(contexts, userMessage);
                 
                 // 3. 会話の要約を取得
                 const conversationSummary = conversationManager.getConversationSummary();
@@ -916,7 +916,7 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 });
                 
                 // 7. 現在のメッセージを追加
-                messages.push({ role: 'user', content: message });
+                messages.push({ role: 'user', content: userMessage });
                 
                 // 8. API呼び出し設定
                 const isNetlify = window.location.hostname.includes('netlify.app') || 
