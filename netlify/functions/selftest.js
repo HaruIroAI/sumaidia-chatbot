@@ -16,7 +16,7 @@ export async function handler() {
       { role:"system", content:[{ type:"input_text", text:"「pong」と1語だけ返す" }] },
       { role:"user",   content:[{ type:"input_text", text:"ping" }] }
     ],
-    max_output_tokens: 8
+    max_output_tokens: 100
   };
   try {
     const r = await fetch("https://api.openai.com/v1/responses", {
