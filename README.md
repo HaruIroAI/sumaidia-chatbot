@@ -55,4 +55,17 @@ SUMAIDIA様向けAIチャットボット「スマイちゃん」のプロジェ�
 
 ## お問い合わせ
 SUMAIDIA様専用のカスタマイズについては別途ご相談ください。
+
+## 開発者向け情報
+
+### プロジェクト状態
+- 最新の作業状態: [PROJECT_STATUS_2025-01-28.md](./PROJECT_STATUS_2025-01-28.md)
+- 障害対応手順: [docs/runbooks/chat-stack-selftest.md](./docs/runbooks/chat-stack-selftest.md)
+- トラブルシューティング: [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
+
+### Netlify Functions
+- 本番環境: https://cute-frangipane-efe657.netlify.app
+- セルフテスト: `/.netlify/functions/selftest`
+- チャットAPI: `/.netlify/functions/chat`
+
 # Force redeploy Tue Aug 26 11:24:22 JST 2025
