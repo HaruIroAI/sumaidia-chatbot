@@ -32,7 +32,9 @@ export async function handler(event) {
       requestBody = {
         model: model,
         input: body.input,
-        max_output_tokens: body.max_output_tokens || 500
+        response_format: { type: "text" },
+        reasoning: { effort: "low" },
+        max_output_tokens: Math.max(64, Number(body?.max_output_tokens || 500))
       };
     } else {
       // Normal mode: process messages

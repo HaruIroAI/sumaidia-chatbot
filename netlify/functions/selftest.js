@@ -59,14 +59,16 @@ export async function handler(event) {
     input: [
       { 
         role: 'system', 
-        content: [{ type: 'input_text', text: '「pong」と1語だけ返す' }] 
+        content: [{ type: 'input_text', text: '「pong」と1語だけ返す。出力は 'pong' のみ。説明や思考、記号は出さない。' }] 
       },
       { 
         role: 'user', 
         content: [{ type: 'input_text', text: 'ping' }] 
       }
     ],
-    max_output_tokens: 100
+    response_format: { type: "text" },
+    reasoning: { effort: "low" },
+    max_output_tokens: 64
   };
 
   try {
@@ -100,6 +102,9 @@ export async function handler(event) {
         ...(includeDebug && { 
           debug: {
             status: response.status,
+            data_status: openaiJson?.status,
+            output_status: openaiJson?.output?.[0]?.status,
+            stop_reason: openaiJson?.output?.[0]?.stop_reason || openaiJson?.stop_reason,
             raw: openaiJson
           }
         })
