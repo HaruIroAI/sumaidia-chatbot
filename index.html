@@ -1308,6 +1308,8 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             
             // 感情の決定：JSONの感情情報を優先、なければテキストから検出
             let finalEmotion = responseEmotion;
+            let emotionSource = responseEmotion ? 'model' : 'engine';
+            
             if (!finalEmotion) {
                 const { id } = window.expressionEngine.select({
                     text: responseText,
@@ -1317,6 +1319,21 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 });
                 window.__lastExpressionId = id;
                 finalEmotion = id;
+            }
+            
+            // Send metrics (fire-and-forget)
+            if (navigator.sendBeacon) {
+                try {
+                    navigator.sendBeacon('/.netlify/functions/metrics', JSON.stringify({
+                        t: 'expr',
+                        id: finalEmotion,
+                        source: emotionSource,
+                        ts: Date.now()
+                    }));
+                } catch (e) {
+                    // Silently ignore metrics errors
+                    console.debug('Metrics beacon failed:', e);
+                }
             }
             
             // Apply style rendering based on emotion
