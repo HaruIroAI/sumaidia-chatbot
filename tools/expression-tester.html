@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expression Engine Tester - Sumaidia</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: #2d3748;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        
+        .subtitle {
+            opacity: 0.8;
+            font-size: 14px;
+        }
+        
+        .main {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .main {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .input-section, .output-section {
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+        }
+        
+        h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .emoji {
+            font-size: 24px;
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 16px;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .preset-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 15px;
+        }
+        
+        .preset-btn {
+            padding: 8px 16px;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        
+        .preset-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+        
+        .analyze-btn {
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .analyze-btn:hover {
+            transform: scale(1.02);
+        }
+        
+        .analyze-btn:active {
+            transform: scale(0.98);
+        }
+        
+        .result-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .expression-id {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .expression-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-size: cover;
+            background-position: center;
+        }
+        
+        .score {
+            font-size: 36px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        
+        .score-label {
+            font-size: 14px;
+            color: #718096;
+            margin-bottom: 5px;
+        }
+        
+        .reasons {
+            background: #f7fafc;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+        
+        .reason-item {
+            padding: 4px 8px;
+            background: white;
+            border-radius: 4px;
+            display: inline-block;
+            margin: 4px;
+            font-size: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .state-info {
+            background: #fef5e7;
+            border: 1px solid #f9e79f;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+        
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎭 Expression Engine Tester</h1>
+            <div class="subtitle">Sumaidia Chatbot - Manual QA Tool</div>
+        </header>
+        
+        <div class="main">
+            <div class="input-section">
+                <h2><span class="emoji">✍️</span> Input Text</h2>
+                <textarea id="testInput" placeholder="テキストを入力してください..."></textarea>
+                
+                <div class="preset-buttons">
+                    <button class="preset-btn" data-text="ありがとうございます！本当に助かりました✨">😊 嬉しい</button>
+                    <button class="preset-btn" data-text="すみません、よくわからないのですが...どういうことでしょうか？？">😕 混乱</button>
+                    <button class="preset-btn" data-text="申し訳ございません。心よりお詫び申し上げます。">🙏 謝罪</button>
+                    <button class="preset-btn" data-text="名刺100枚の見積もりをお願いしたいのですが、いくらくらいになりますか？">💰 見積</button>
+                    <button class="preset-btn" data-text="急ぎで明日までに必要なのですが、対応可能でしょうか？">⏰ 納期</button>
+                    <button class="preset-btn" data-text="これはひどい！全然違うじゃないですか！どうしてくれるんですか！！">😠 クレーム</button>
+                    <button class="preset-btn" data-text="なるほど〜！それはいいアイデアですね！やってみます！！！">🎉 興奮</button>
+                    <button class="preset-btn" data-text="うーん...ちょっと考えさせてください...">🤔 思考中</button>
+                    <button class="preset-btn" data-text="おやすみなさい〜また明日〜😴">😪 眠い</button>
+                    <button class="preset-btn" data-text="え！？本当ですか！？びっくりです！">😲 驚き</button>
+                </div>
+                
+                <button class="analyze-btn" onclick="analyzeText()">🔍 Analyze Expression</button>
+            </div>
+            
+            <div class="output-section">
+                <h2><span class="emoji">📊</span> Analysis Result</h2>
+                <div id="output">
+                    <div class="loading">テキストを入力して「Analyze」ボタンを押してください</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Load expression engine -->
+    <script src="../scripts/expression-engine.js"></script>
+    
+    <script>
+        // Initialize engine when page loads
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (window.expressionEngine) {
+                await window.expressionEngine.init('../config/expressions.json');
+                console.log('Expression engine initialized');
+            } else {
+                showError('Expression engine not found');
+            }
+        });
+        
+        // Preset button handlers
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const text = e.target.getAttribute('data-text');
+                document.getElementById('testInput').value = text;
+                analyzeText();
+            });
+        });
+        
+        // Analyze function
+        function analyzeText() {
+            const input = document.getElementById('testInput').value.trim();
+            const outputDiv = document.getElementById('output');
+            
+            if (!input) {
+                outputDiv.innerHTML = '<div class="error">テキストを入力してください</div>';
+                return;
+            }
+            
+            if (!window.expressionEngine) {
+                outputDiv.innerHTML = '<div class="error">Expression engine is not loaded</div>';
+                return;
+            }
+            
+            try {
+                // Analyze the text
+                const result = window.expressionEngine.select({
+                    text: input,
+                    role: 'assistant',
+                    contexts: analyzeContext(input),
+                    lastId: window.__lastExpressionId || null
+                });
+                
+                // Update last expression ID
+                window.__lastExpressionId = result.id;
+                
+                // Find expression details
+                const expression = window.expressionEngine.expressions.find(e => e.id === result.id);
+                const avatarFile = expression?.files?.[0] || 'logo/smaichan.png';
+                
+                // Build output HTML
+                let html = '<div class="result-card">';
+                
+                // Expression ID with avatar
+                html += '<div class="expression-id">';
+                html += `<div class="expression-avatar" style="background-image: url('../${avatarFile}')"></div>`;
+                html += `<span>${result.id}</span>`;
+                html += '</div>';
+                
+                // Score
+                html += '<div class="score-label">Score:</div>';
+                html += `<div class="score">${result.score}</div>`;
+                
+                // Expression details
+                if (expression) {
+                    html += '<div style="margin-top: 10px; font-size: 14px; color: #718096;">';
+                    html += `<div>Priority: ${expression.priority || 50}</div>`;
+                    html += `<div>Threshold: ${expression.threshold || 12}</div>`;
+                    html += `<div>Cooldown: ${expression.cooldown || 1800}ms</div>`;
+                    html += `<div>Group: ${expression.group || 'neutral'}</div>`;
+                    html += '</div>';
+                }
+                
+                // Reasons
+                if (result.reasons && result.reasons.length > 0) {
+                    html += '<div class="reasons">';
+                    html += '<div style="font-size: 14px; margin-bottom: 8px; color: #718096;">Scoring Reasons:</div>';
+                    result.reasons.forEach(reason => {
+                        html += `<span class="reason-item">${reason}</span>`;
+                    });
+                    html += '</div>';
+                }
+                
+                html += '</div>';
+                
+                // Current state info
+                if (window.__exprState) {
+                    const now = Date.now();
+                    const remaining = Math.max(0, window.__exprState.until - now);
+                    html += '<div class="state-info">';
+                    html += '<strong>Current State:</strong><br>';
+                    html += `Expression: ${window.__exprState.id}<br>`;
+                    html += `Cooldown remaining: ${Math.round(remaining / 1000)}s`;
+                    html += '</div>';
+                }
+                
+                // Detected contexts
+                const contexts = analyzeContext(input);
+                if (contexts.length > 0) {
+                    html += '<div style="margin-top: 15px; padding: 12px; background: #e6fffa; border-radius: 6px;">';
+                    html += '<strong style="color: #234e52;">Detected Contexts:</strong><br>';
+                    html += contexts.map(ctx => `<span class="reason-item" style="background: #81e6d9; border-color: #4fd1c5;">${ctx}</span>`).join('');
+                    html += '</div>';
+                }
+                
+                outputDiv.innerHTML = html;
+                
+            } catch (error) {
+                outputDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                console.error('Analysis error:', error);
+            }
+        }
+        
+        // Simple context analyzer (borrowed from main app)
+        function analyzeContext(text) {
+            const contexts = {
+                pricing: ['価格', '料金', '値段', 'いくら', '見積', '費用', '金額', 'コスト', '予算', '円'],
+                delivery: ['納期', 'いつ', '急ぎ', '特急', '日数', '期限', '締切', '間に合', 'すぐ', '即日', '当日', '明日'],
+                services: ['名刺', 'チラシ', 'ポスター', 'カタログ', 'パンフレット', 'のぼり', 'ステッカー', '封筒', 'はがき'],
+                printing: ['印刷', '部数', '枚数', '枚', '部', '個', 'ロット', '大量', '少量'],
+                design: ['デザイン', 'ロゴ', 'レイアウト', 'テンプレート', 'イラスト', '写真', '画像', 'フォント'],
+                digital: ['web', 'ウェブ', 'サイト', 'ホームページ', 'LP', 'ランディング', 'SNS', '動画', 'バナー'],
+                company: ['会社', '住所', '営業時間', '場所', 'アクセス', '電話', '連絡', '問い合わせ', 'スマイディア'],
+                technical: ['データ', '入稿', 'cmyk', 'rgb', '解像度', 'pdf', 'ai', 'トンボ', '塗り足し', 'dpi'],
+                quality: ['品質', 'クオリティ', '仕上がり', '色', '紙質', '厚さ', '加工', 'PP', '箔押し'],
+                payment: ['支払', '振込', 'カード', '請求書', '見積書', '領収書', '税込', '税別']
+            };
+            
+            const detectedContexts = [];
+            const lowerText = text.toLowerCase();
+            
+            for (const [context, keywords] of Object.entries(contexts)) {
+                if (keywords.some(keyword => lowerText.includes(keyword))) {
+                    detectedContexts.push(context);
+                }
+            }
+            
+            return detectedContexts;
+        }
+        
+        function showError(message) {
+            document.getElementById('output').innerHTML = `<div class="error">${message}</div>`;
+        }
+        
+        // Allow Enter key to analyze (Shift+Enter for new line)
+        document.getElementById('testInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                analyzeText();
+            }
+        });
+    </script>
+</body>
+</html>
