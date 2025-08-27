@@ -1200,12 +1200,12 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
         // Handle form submission
         chatForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const message = messageInput.value.trim();
-            if (!message) return;
+            const userMessage = messageInput.value.trim();
+            if (!userMessage) return;
             
             // Add user message
-            addMessage(message, true);
-            conversationManager.addMessage(message, true); // ConversationManagerに追加
+            addMessage(userMessage, true);
+            conversationManager.addMessage(userMessage, true);
             messageInput.value = '';
             
             // Show typing indicator
@@ -1226,12 +1226,12 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             let response;
             
             if (currentMode === 'online' && (isNetlify || apiKey)) {
-                response = await callChatGPT(message);
+                response = await callChatGPT(userMessage);
             }
             
             if (response == null) {
                 // Use offline response
-                response = window.generateResponse ? window.generateResponse(message) : 
+                response = window.generateResponse ? window.generateResponse(userMessage) : 
                     '素敵なメッセージありがとう〜！印刷のこと何でも聞いてね💕';
             }
             
