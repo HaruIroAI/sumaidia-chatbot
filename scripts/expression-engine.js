@@ -100,9 +100,22 @@ class ExpressionEngine {
     /**
      * Main selection API with weighted scoring
      */
-    select({ text, role = 'assistant', contexts = [], lastId = null }) {
+    select({ text, role = 'assistant', contexts = [], lastId = null, isTyping = false }) {
         if (!this.initialized) {
             this.loadDefaults();
+        }
+
+        // Special handling for typing indicator
+        if (isTyping) {
+            const thinkingExp = this.expressions.find(e => e.id === 'thinking');
+            if (thinkingExp) {
+                const now = Date.now();
+                window.__exprState = {
+                    id: 'thinking',
+                    until: now + (thinkingExp.cooldown || 1800)
+                };
+                return { id: 'thinking', score: 100, reasons: ['typing indicator'] };
+            }
         }
 
         if (!text || typeof text !== 'string') {
@@ -244,14 +257,48 @@ class ExpressionEngine {
             }
         }
 
+        // Check hysteresis and cooldown state
+        const now = Date.now();
+        const currentState = window.__exprState;
+        
+        if (currentState && currentState.until > now) {
+            // We're still in cooldown period
+            const currentExpression = this.expressions.find(e => e.id === currentState.id);
+            const currentScore = scores.get(currentState.id) || 0;
+            
+            if (currentExpression && bestExpression) {
+                // Check if we should maintain current expression
+                const scoreDifference = bestScore - currentScore;
+                const sameGroup = currentExpression.group === bestExpression.group;
+                
+                // Only switch if:
+                // 1. Different group with significant difference (>= 8 points)
+                // 2. Same group but massive difference (>= 15 points)
+                const significantDifference = sameGroup ? 15 : 8;
+                
+                if (scoreDifference < significantDifference) {
+                    // Keep current expression due to hysteresis
+                    bestExpression = currentExpression;
+                    bestScore = currentScore;
+                    reasons.set(currentState.id, [...(reasons.get(currentState.id) || []), 'hysteresis']);
+                }
+            }
+        }
+
         // Fallback to default if no expression meets threshold
         if (!bestExpression) {
             bestExpression = this.expressions.find(e => e.id === this.defaultExpression) || this.expressions[0];
             bestScore = 0;
         }
 
+        // Update state with new expression and cooldown
+        window.__exprState = {
+            id: bestExpression.id,
+            until: now + (bestExpression.cooldown || 1800)
+        };
+
         // Update last use time
-        this.lastUpdateTime[bestExpression.id] = Date.now();
+        this.lastUpdateTime[bestExpression.id] = now;
 
         return {
             id: bestExpression.id,

@@ -1230,7 +1230,18 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             conversationManager.addMessage(userMessage, true); // ConversationManagerに追加
             messageInput.value = '';
             
-            // Show typing indicator
+            // Show typing indicator with thinking expression
+            if (window.expressionEngine) {
+                const { id } = window.expressionEngine.select({
+                    text: '',
+                    role: 'assistant',
+                    contexts: [],
+                    lastId: window.__lastExpressionId || null,
+                    isTyping: true
+                });
+                updateAvatarExpression(id);
+            }
+            
             const typingDiv = document.createElement('div');
             typingDiv.className = 'message assistant';
             typingDiv.innerHTML = `
