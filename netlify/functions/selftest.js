@@ -17,9 +17,9 @@ export async function handler(event) {
         { role: 'system', content: [{ type: 'input_text', text: '「pong」と1語だけ返す' }] },
         { role: 'user', content: [{ type: 'input_text', text: 'ping' }] }
       ],
-      text: { format: { type: 'text' }, verbosity: 'medium' },
+      text: { format: { type: 'text' }, verbosity: 'low' },
       reasoning: { effort: 'low' },
-      max_output_tokens: 32
+      max_output_tokens: 256
     };
 
     const res = await fetch('https://api.openai.com/v1/responses', {
@@ -46,7 +46,12 @@ export async function handler(event) {
 
     // Include debug info if requested
     if (event?.queryStringParameters?.debug === '1') {
-      body.debug = { status: data?.status, raw: JSON.stringify(data) };
+      body.debug = {
+        status: data?.status,
+        incomplete: data?.incomplete_details,
+        usage: data?.usage,
+        raw: JSON.stringify(data)
+      };
     }
 
     return {
