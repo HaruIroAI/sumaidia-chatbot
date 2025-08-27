@@ -1,0 +1,23 @@
+[
+  {
+    "text": "うーん、どうしようかな...",
+    "expected": "thinking",
+    "actual": "neutral",
+    "score": 0,
+    "reasons": []
+  },
+  {
+    "text": "本当に申し訳ございません",
+    "expected": "sad",
+    "actual": "neutral",
+    "score": 0,
+    "reasons": []
+  },
+  {
+    "text": "つらいね...",
+    "expected": "sad",
+    "actual": "neutral",
+    "score": 0,
+    "reasons": []
+  }
+]

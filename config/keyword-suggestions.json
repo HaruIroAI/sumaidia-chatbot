@@ -1,0 +1,55 @@
+{
+  "timestamp": "2025-08-27T22:04:41.921Z",
+  "totalExpressions": 2,
+  "suggestions": {
+    "thinking": {
+      "failureCount": 1,
+      "currentWhen": [
+        "考え",
+        "検討"
+      ],
+      "addToWhen": [
+        "どうしようかな"
+      ],
+      "currentPatterns": [],
+      "addToPatterns": [
+        "んどうしようかな",
+        "どうしようかなー"
+      ],
+      "examples": [
+        {
+          "text": "うーん、どうしようかな......",
+          "actual": "neutral"
+        }
+      ]
+    },
+    "sad": {
+      "failureCount": 2,
+      "currentWhen": [
+        "悲し"
+      ],
+      "addToWhen": [
+        "ございません",
+        "本当",
+        "本当に",
+        "申し",
+        "訳ございません"
+      ],
+      "currentPatterns": [],
+      "addToPatterns": [
+        "しございません",
+        "ございません本当"
+      ],
+      "examples": [
+        {
+          "text": "本当に申し訳ございません...",
+          "actual": "neutral"
+        },
+        {
+          "text": "つらいね......",
+          "actual": "neutral"
+        }
+      ]
+    }
+  }
+}
