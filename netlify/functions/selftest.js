@@ -1,6 +1,7 @@
 import { extractText } from "./_extractText.js";
 
 export async function handler() {
+  // Force rebuild: v2
   const apiKey = process.env.OPENAI_API_KEY;
   const model  = process.env.OPENAI_MODEL || "gpt-5-mini";
   if (!apiKey) {
