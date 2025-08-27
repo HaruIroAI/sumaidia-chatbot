@@ -1,128 +1,72 @@
 export async function handler(event) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MODEL || 'gpt-5-mini';
-  
-  if (!apiKey) {
-    return {
-      statusCode: 500,
-      headers: { 
-        'content-type': 'application/json',
-        'access-control-allow-origin': '*'
-      },
-      body: JSON.stringify({ 
-        ok: false, 
-        error: 'Missing OPENAI_API_KEY' 
-      })
-    };
-  }
-
-  // Extract text from various response formats
-  function extractText(data) {
-    // Check all output items for text content
-    if (data?.output && Array.isArray(data.output)) {
-      for (const item of data.output) {
-        // Direct text property
-        if (item?.text && typeof item.text === 'string') {
-          return item.text.trim();
-        }
-        // Content array
-        if (item?.content && Array.isArray(item.content)) {
-          const textContent = item.content.find(c => c.type === 'output_text' || c.type === 'text');
-          if (textContent?.text) {
-            return textContent.text.trim();
-          }
-        }
-      }
-    }
-    
-    // Chat compatible wrap format (what /chat returns)
-    if (data?.choices?.[0]?.message?.content) {
-      return data.choices[0].message.content.trim();
-    }
-    
-    // Legacy field fallback
-    if (typeof data?.output_text === 'string') {
-      return data.output_text.trim();
-    }
-    
-    // Text field in response
-    if (data?.text?.value) {
-      return data.text.value.trim();
-    }
-    
-    return '';
-  }
-
-  // Responses API compatible request
-  const payload = {
-    model: model,
-    input: [
-      { 
-        role: 'system', 
-        content: [{ type: 'input_text', text: '「pong」と1語だけ返す。出力は 'pong' のみ。説明や思考、記号は出さない。' }] 
-      },
-      { 
-        role: 'user', 
-        content: [{ type: 'input_text', text: 'ping' }] 
-      }
-    ],
-    response_format: { type: "text" },
-    reasoning: { effort: "low" },
-    max_output_tokens: 64
-  };
-
   try {
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    const model = process.env.OPENAI_MODEL || 'gpt-5-mini';
+
+    if (!OPENAI_API_KEY) {
+      return {
+        statusCode: 500,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ok: false, error: 'Missing OPENAI_API_KEY' })
+      };
+    }
+
+    const payload = {
+      model,
+      input: [
+        { role: 'system', content: [{ type: 'input_text', text: '「pong」と1語だけ返す' }] },
+        { role: 'user', content: [{ type: 'input_text', text: 'ping' }] }
+      ],
+      text: { format: { type: 'text' }, verbosity: 'medium' },
+      reasoning: { effort: 'low' },
+      max_output_tokens: 32
+    };
+
+    const res = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
-        'content-type': 'application/json',
-        'authorization': `Bearer ${apiKey}`
+        'authorization': `Bearer ${OPENAI_API_KEY}`,
+        'content-type': 'application/json'
       },
       body: JSON.stringify(payload)
     });
+    const data = await res.json();
 
-    const openaiJson = await response.json();
-    const text = extractText(openaiJson);
-    
-    // Check if we want debug info
-    const url = new URL(event.rawUrl || event.url || 'http://localhost');
-    const includeDebug = url.searchParams.get('debug') === '1';
+    // Extract text from various response formats
+    const text =
+      data?.output?.[0]?.content?.find(c => c.type === 'output_text')?.text ??
+      data?.choices?.[0]?.message?.content ??
+      data?.output_text ?? '';
+
+    const body = {
+      ok: !!text.trim(),
+      model: data?.model || model,
+      sample: text.trim(),
+    };
+
+    // Include debug info if requested
+    if (event?.queryStringParameters?.debug === '1') {
+      body.debug = { status: data?.status, raw: JSON.stringify(data) };
+    }
 
     return {
       statusCode: 200,
-      headers: { 
+      headers: {
         'content-type': 'application/json',
         'access-control-allow-origin': '*',
-        'x-model': openaiJson?.model || model
+        'x-model': data?.model || model
       },
-      body: JSON.stringify({
-        ok: !!text,
-        model: openaiJson?.model || model,
-        sample: text,
-        ...(includeDebug && { 
-          debug: {
-            status: response.status,
-            data_status: openaiJson?.status,
-            output_status: openaiJson?.output?.[0]?.status,
-            stop_reason: openaiJson?.output?.[0]?.stop_reason || openaiJson?.stop_reason,
-            raw: openaiJson
-          }
-        })
-      })
+      body: JSON.stringify(body)
     };
 
-  } catch (error) {
+  } catch (e) {
     return {
       statusCode: 500,
-      headers: { 
+      headers: {
         'content-type': 'application/json',
         'access-control-allow-origin': '*'
       },
-      body: JSON.stringify({ 
-        ok: false, 
-        error: 'Selftest exception', 
-        message: error.message 
-      })
+      body: JSON.stringify({ ok: false, error: String(e) })
     };
   }
 }
