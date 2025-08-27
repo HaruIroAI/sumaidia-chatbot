@@ -12,6 +12,16 @@
 
 const SITE_URL = process.env.SITE_URL || "https://cute-frangipane-efe657.netlify.app";
 
+// 終了コードの定義
+const EXIT_CODES = {
+  SUCCESS: 0,
+  HTTP_ERROR: 1,        // 200以外のHTTPステータス
+  EMPTY_RESPONSE: 2,    // 空文字の応答
+  JSON_ERROR: 3,        // JSON解析エラー
+  CONTENT_ERROR: 4,     // contentが存在しない
+  GENERAL_ERROR: 5      // その他のエラー
+};
+
 async function runSelfTest() {
   console.log("🔍 Netlify Functions セルフテスト開始...");
   console.log(`📍 対象サイト: ${SITE_URL}`);
@@ -21,10 +31,24 @@ async function runSelfTest() {
     // 1. selftest エンドポイントのテスト
     console.log("1️⃣ /selftest エンドポイントをテスト中...");
     const selftestResponse = await fetch(`${SITE_URL}/.netlify/functions/selftest`);
-    const selftestData = await selftestResponse.json();
-
+    
     if (!selftestResponse.ok) {
-      throw new Error(`selftest failed: ${selftestResponse.status} - ${JSON.stringify(selftestData)}`);
+      console.error(`❌ HTTPエラー: ${selftestResponse.status}`);
+      process.exit(EXIT_CODES.HTTP_ERROR);
+    }
+
+    const selftestText = await selftestResponse.text();
+    if (!selftestText) {
+      console.error("❌ 空の応答が返されました");
+      process.exit(EXIT_CODES.EMPTY_RESPONSE);
+    }
+
+    let selftestData;
+    try {
+      selftestData = JSON.parse(selftestText);
+    } catch (e) {
+      console.error("❌ JSON解析エラー:", selftestText);
+      process.exit(EXIT_CODES.JSON_ERROR);
     }
 
     console.log("✅ selftest レスポンス:", JSON.stringify(selftestData, null, 2));
@@ -48,11 +72,27 @@ async function runSelfTest() {
       })
     });
 
-    const chatData = await chatResponse.json();
     const xModel = chatResponse.headers.get("x-model");
 
     if (!chatResponse.ok) {
-      throw new Error(`chat failed: ${chatResponse.status} - ${JSON.stringify(chatData)}`);
+      console.error(`❌ Chat HTTPエラー: ${chatResponse.status}`);
+      const errorText = await chatResponse.text();
+      console.error("エラー内容:", errorText);
+      process.exit(EXIT_CODES.HTTP_ERROR);
+    }
+
+    const chatText = await chatResponse.text();
+    if (!chatText) {
+      console.error("❌ Chat: 空の応答が返されました");
+      process.exit(EXIT_CODES.EMPTY_RESPONSE);
+    }
+
+    let chatData;
+    try {
+      chatData = JSON.parse(chatText);
+    } catch (e) {
+      console.error("❌ Chat JSON解析エラー:", chatText);
+      process.exit(EXIT_CODES.JSON_ERROR);
     }
 
     console.log("✅ chat レスポンス:");
@@ -62,8 +102,15 @@ async function runSelfTest() {
 
     // レスポンスの検証
     const content = chatData?.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("chat response has no content");
+    if (content === undefined || content === null) {
+      console.error("❌ Chat: contentが存在しません");
+      console.error("Response structure:", JSON.stringify(chatData, null, 2));
+      process.exit(EXIT_CODES.CONTENT_ERROR);
+    }
+    
+    if (content === "") {
+      console.error("❌ Chat: contentが空文字です");
+      process.exit(EXIT_CODES.EMPTY_RESPONSE);
     }
 
     if (content.trim().toLowerCase() !== "pong") {
@@ -78,7 +125,7 @@ async function runSelfTest() {
     console.log(`   - chat: ${chatResponse.ok ? "✅ PASS" : "❌ FAIL"}`);
     console.log("\n🎉 Netlify Functions は正常に動作しています！");
 
-    process.exit(0);
+    process.exit(EXIT_CODES.SUCCESS);
 
   } catch (error) {
     console.error("\n❌ エラーが発生しました:");
@@ -88,7 +135,7 @@ async function runSelfTest() {
     console.error("2. TROUBLESHOOTING.md でエラーメッセージを確認");
     console.error("3. Netlify Functions logs でサーバーログを確認");
     
-    process.exit(1);
+    process.exit(EXIT_CODES.GENERAL_ERROR);
   }
 }
 

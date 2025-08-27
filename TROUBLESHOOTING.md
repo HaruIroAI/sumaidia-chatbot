@@ -19,7 +19,9 @@ Responses API の互換性問題に遭遇した際の即時復旧ガイド
 | **Unsupported parameter: 'temperature'** | **削除**（このモデルでは非対応） |
 | **Unsupported parameter: 'messages'** | **`input`** を使う（`messages` は Chat Completions 用） |
 | **Invalid value: 'text'** | 入力側の型は **`input_text`**、出力側は **`output_text`** を用いる |
+| **Invalid value: 'input_text'** (400エラー) | **`response_format`** を削除、input形式を最小化 |
 | **本文が空になる** | `output_text` 優先 → `output[*].content[*].text (type==="output_text")` の順で抽出 |
+| **暫定エラー: 応答テキストが取得できませんでした** (200/空文字) | フロントの変数名不一致、または output_text 抽出失敗 |
 | **環境変数ミス（例：OPENI_MODEL）** | 正：**`OPENAI_MODEL`**。誤綴りを削除 |
 | **do not have access to model** | モデル権限/有効化を確認。暫定で gpt-4o-mini へ切替可 |
 
@@ -139,6 +141,22 @@ curl https://cute-frangipane-efe657.netlify.app/.netlify/functions/selftest
 3. **ログの確認場所**
    - Netlify Dashboard → Functions → View logs
    - エラー時は完全なスタックトレースが記録される
+
+## クイックチェックリスト
+
+### API動作確認の手順
+1. **x-modelヘッダー**: `curl -I` でx-modelが返されるか確認
+2. **ステータス200**: selftest/chatエンドポイントが200を返すか
+3. **pongテスト**: 単純な応答が正しく返るか
+4. **通常会話**: 長い応答が途切れずに返るか
+
+### エラー時の終了コード（scripts/selftest.mjs）
+- `0`: 成功
+- `1`: HTTPエラー（200以外）
+- `2`: 空文字応答
+- `3`: JSON解析エラー
+- `4`: contentフィールドが存在しない
+- `5`: その他の一般エラー
 
 ## 関連ドキュメント
 - [Responses API 互換性ガイド](docs/responses-api-compat.md)

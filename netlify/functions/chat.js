@@ -1,3 +1,5 @@
+import { extractText } from "./_extractText.js";
+
 export async function handler(event) {
   const headers = {
     "content-type": "application/json",
@@ -18,12 +20,14 @@ export async function handler(event) {
       };
     }
 
-    // 最小構成のリクエストボディ
+    // Responses API用のリクエストボディ
     const requestBody = {
       model: model,
       input: messages.map(m => ({ 
         role: m.role, 
-        content: m.content 
+        content: typeof m.content === 'string' 
+          ? [{ type: "input_text", text: m.content }]
+          : m.content
       })),
       max_output_tokens: 500
     };
@@ -49,32 +53,39 @@ export async function handler(event) {
       };
     }
 
-    // レスポンスからテキストを抽出
-    let text = "";
-    
-    // 1. data.output[0].contentからtype==="output_text"を探す
-    if (data.output && Array.isArray(data.output) && data.output[0]) {
-      const content = data.output[0].content;
-      if (Array.isArray(content)) {
-        const outputText = content.find(item => item.type === "output_text");
-        if (outputText && outputText.text) {
-          text = outputText.text;
-        }
-      }
-    }
-    
-    // 2. フォールバック: data.choices[0].message.content
-    if (!text && data.choices?.[0]?.message?.content) {
-      text = data.choices[0].message.content;
+    // レスポンスからテキストを抽出（共通ヘルパーを使用）
+    const text = extractText(data);
+
+    // ガード: output抽出失敗時の明示メッセージ
+    if (!text) {
+      const responseBody = {
+        choices: [{
+          message: {
+            role: "assistant",
+            content: "暫定エラー: 応答テキストが取得できませんでした"
+          },
+          finish_reason: "stop"
+        }],
+        usage: data.usage || {}
+      };
+      
+      return {
+        statusCode: 200,  // 500にはしない
+        headers: { ...headers, "x-model": data.model || model },
+        body: JSON.stringify(responseBody)
+      };
     }
 
-    // 返却形式
+    // 正常な返却形式
     const responseBody = {
       choices: [{
         message: {
-          content: text || ""
-        }
-      }]
+          role: "assistant",
+          content: text
+        },
+        finish_reason: "stop"
+      }],
+      usage: data.usage || {}
     };
 
     return {
@@ -86,7 +97,7 @@ export async function handler(event) {
   } catch (err) {
     return {
       statusCode: 500,
-      headers,
+      headers: { ...headers, "x-model": process.env.OPENAI_MODEL || "gpt-5-mini" },
       body: JSON.stringify({ 
         error: "Internal server error", 
         message: String(err?.message || err) 
