@@ -6,7 +6,8 @@
   "scripts": {
     "build:css": "tailwindcss -i ./src/styles/tailwind.css -o ./assets/tailwind.css --minify",
     "build": "npm run build:css",
-    "test": "node scripts/selftest.mjs"
+    "test": "node tests/expression-engine.test.mjs",
+    "test:api": "node scripts/selftest.mjs"
   },
   "engines": {
     "node": ">=18.0.0"

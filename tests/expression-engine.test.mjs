@@ -1,0 +1,159 @@
+#!/usr/bin/env node
+
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import assert from 'assert';
+
+// Get current directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load the expression engine
+const enginePath = join(__dirname, '..', 'scripts', 'expression-engine.js');
+const engineCode = readFileSync(enginePath, 'utf-8');
+
+// Create a mock window object for the engine
+global.window = {
+    __exprState: null,
+    __debugExpressions: false
+};
+
+// Evaluate the engine code
+eval(engineCode);
+
+// Load fixtures
+const fixturesPath = join(__dirname, 'expressions.fixtures.json');
+const fixtures = JSON.parse(readFileSync(fixturesPath, 'utf-8'));
+
+// Load expression config
+const configPath = join(__dirname, '..', 'config', 'expressions.json');
+const expressions = JSON.parse(readFileSync(configPath, 'utf-8'));
+
+// Test runner
+class ExpressionTester {
+    constructor() {
+        this.passed = 0;
+        this.failed = 0;
+        this.failures = [];
+    }
+
+    async run() {
+        console.log('🧪 Expression Engine Golden Tests\n');
+        console.log('═══════════════════════════════════════\n');
+
+        // Initialize the engine with expressions
+        global.window.expressionEngine.expressions = expressions;
+        global.window.expressionEngine.initialized = true;
+        
+        // Add defaults for missing fields
+        global.window.expressionEngine.expressions = global.window.expressionEngine.expressions.map(exp => ({
+            ...exp,
+            priority: exp.priority ?? 50,
+            threshold: exp.threshold ?? 12,
+            cooldown: exp.cooldown ?? 1800,
+            group: exp.group ?? 'neutral',
+            patterns: exp.patterns ?? []
+        }));
+
+        // Run tests
+        for (const [index, fixture] of fixtures.entries()) {
+            await this.testFixture(fixture, index + 1);
+        }
+
+        // Print summary
+        this.printSummary();
+        
+        // Exit with appropriate code
+        process.exit(this.failed > 0 ? 1 : 0);
+    }
+
+    async testFixture(fixture, testNumber) {
+        const { text, expect } = fixture;
+        
+        try {
+            // Reset state between tests
+            global.window.__exprState = null;
+            
+            // Run expression selection
+            const result = global.window.expressionEngine.select({
+                text: text,
+                role: 'assistant',
+                contexts: [],
+                lastId: null
+            });
+
+            // Assert the result
+            assert.strictEqual(
+                result.id,
+                expect,
+                `Expected "${expect}" but got "${result.id}"`
+            );
+
+            this.passed++;
+            console.log(`✅ Test #${testNumber}: "${text.substring(0, 30)}..." → ${result.id} (score: ${result.score})`);
+            
+        } catch (error) {
+            this.failed++;
+            this.failures.push({ testNumber, fixture, error });
+            
+            // Get the actual result for debugging
+            const actualResult = global.window.expressionEngine.select({
+                text: text,
+                role: 'assistant',
+                contexts: [],
+                lastId: null
+            });
+            
+            console.log(`❌ Test #${testNumber}: "${text.substring(0, 30)}..."`);
+            console.log(`   Expected: ${expect}`);
+            console.log(`   Got: ${actualResult.id} (score: ${actualResult.score})`);
+            console.log(`   Reasons: ${actualResult.reasons.join(', ')}`);
+            console.log('');
+        }
+    }
+
+    printSummary() {
+        console.log('\n═══════════════════════════════════════\n');
+        console.log('📊 Test Results Summary\n');
+        
+        const total = this.passed + this.failed;
+        const passRate = ((this.passed / total) * 100).toFixed(1);
+        
+        console.log(`Total Tests: ${total}`);
+        console.log(`✅ Passed: ${this.passed}`);
+        console.log(`❌ Failed: ${this.failed}`);
+        console.log(`📈 Pass Rate: ${passRate}%`);
+        
+        if (this.failed > 0) {
+            console.log('\n⚠️  Failed Tests Details:\n');
+            
+            // Group failures by expected expression
+            const failuresByExpected = {};
+            for (const failure of this.failures) {
+                const expected = failure.fixture.expect;
+                if (!failuresByExpected[expected]) {
+                    failuresByExpected[expected] = [];
+                }
+                failuresByExpected[expected].push(failure);
+            }
+            
+            // Print grouped failures
+            for (const [expected, failures] of Object.entries(failuresByExpected)) {
+                console.log(`\n  Expected "${expected}" (${failures.length} failures):`);
+                for (const failure of failures) {
+                    console.log(`    - Test #${failure.testNumber}: "${failure.fixture.text.substring(0, 40)}..."`);
+                }
+            }
+            
+            console.log('\n💡 Tip: Review the scoring weights in expression-engine.js');
+            console.log('   or adjust the "when" and "patterns" in config/expressions.json');
+        } else {
+            console.log('\n🎉 All tests passed! The expression mapping is working correctly.');
+        }
+    }
+}
+
+// Run tests
+const tester = new ExpressionTester();
+tester.run().catch(console.error);

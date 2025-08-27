@@ -1,0 +1,113 @@
+[
+  {"text": "嬉しすぎ！最高！", "expect": "excited"},
+  {"text": "ありがとうございます！本当に助かりました", "expect": "grateful"},
+  {"text": "すごく嬉しいです！", "expect": "happy"},
+  
+  {"text": "どゆこと？わからない", "expect": "confused"},
+  {"text": "えっ、どういう意味ですか？？", "expect": "confused"},
+  {"text": "よく分からないのですが...", "expect": "confused"},
+  
+  {"text": "ちょっと考えさせてください", "expect": "thinking"},
+  {"text": "うーん、どうしようかな...", "expect": "thinking"},
+  {"text": "検討してみます", "expect": "thinking"},
+  
+  {"text": "本当に申し訳ございません", "expect": "sad"},
+  {"text": "悲しいです...", "expect": "sad"},
+  {"text": "つらいね...", "expect": "sad"},
+  
+  {"text": "もう！イライラする！", "expect": "angry"},
+  {"text": "怒ってます！", "expect": "angry"},
+  {"text": "むかつく！", "expect": "angry"},
+  
+  {"text": "え！？本当ですか！？", "expect": "surprised"},
+  {"text": "びっくりした！", "expect": "surprised"},
+  {"text": "まじで！？", "expect": "surprised"},
+  
+  {"text": "大丈夫かな...心配です", "expect": "worried"},
+  {"text": "不安だなあ", "expect": "worried"},
+  {"text": "心配になってきた", "expect": "worried"},
+  
+  {"text": "頑張ります！ファイト！", "expect": "motivated"},
+  {"text": "やる気満々です！", "expect": "motivated"},
+  {"text": "よし、行くぞ！", "expect": "motivated"},
+  
+  {"text": "www うける〜", "expect": "laughing"},
+  {"text": "めっちゃ笑った😂", "expect": "laughing"},
+  {"text": "ワロタｗｗｗ", "expect": "laughing"},
+  
+  {"text": "愛してる❤️", "expect": "love"},
+  {"text": "大好きです💕", "expect": "love"},
+  {"text": "ラブラブだね〜", "expect": "love"},
+  
+  {"text": "おやすみなさい〜", "expect": "sleepy"},
+  {"text": "眠たい...ふわあ", "expect": "sleepy"},
+  {"text": "もう寝ます😴", "expect": "sleepy"},
+  
+  {"text": "恥ずかしい〜照れちゃう", "expect": "shy"},
+  {"text": "えへへ、照れるなあ", "expect": "shy"},
+  {"text": "もじもじ...", "expect": "shy"},
+  
+  {"text": "てへぺろ😉", "expect": "wink"},
+  {"text": "ウインクしちゃった", "expect": "wink"},
+  {"text": "にっこり😉", "expect": "wink"},
+  
+  {"text": "キラキラ輝いてる✨✨", "expect": "star_eyes"},
+  {"text": "憧れちゃう🤩", "expect": "star_eyes"},
+  {"text": "素晴らしすぎる！", "expect": "star_eyes"},
+  
+  {"text": "かっこいいね！", "expect": "cool"},
+  {"text": "クールだよ👍", "expect": "cool"},
+  {"text": "イケてる〜", "expect": "cool"},
+  
+  {"text": "ピース✌️", "expect": "peace"},
+  {"text": "平和が一番", "expect": "peace"},
+  {"text": "よろしく〜✌️", "expect": "peace"},
+  
+  {"text": "本気でやります", "expect": "determined"},
+  {"text": "決意しました", "expect": "determined"},
+  {"text": "真剣に取り組みます", "expect": "determined"},
+  
+  {"text": "いたずらしちゃお〜😜", "expect": "playful"},
+  {"text": "てへぺろ〜", "expect": "playful"},
+  {"text": "じゃれちゃう", "expect": "playful"},
+  
+  {"text": "自慢じゃないけど、できました", "expect": "proud"},
+  {"text": "えっへん、どや！", "expect": "proud"},
+  {"text": "誇らしいです", "expect": "proud"},
+  
+  {"text": "なになに？気になる〜", "expect": "curious"},
+  {"text": "知りたい！教えて！", "expect": "curious"},
+  {"text": "興味津々です", "expect": "curious"},
+  
+  {"text": "自信あります！任せて！", "expect": "confident"},
+  {"text": "余裕でできるよ", "expect": "confident"},
+  {"text": "確実にできます", "expect": "confident"},
+  
+  {"text": "やっちゃった...失敗した", "expect": "embarrassed"},
+  {"text": "恥ずかしい失敗...", "expect": "embarrassed"},
+  {"text": "あちゃー、oops", "expect": "embarrassed"},
+  
+  {"text": "集中して作業します", "expect": "focused"},
+  {"text": "真面目に仕事中", "expect": "focused"},
+  {"text": "フォーカスしてます", "expect": "focused"},
+  
+  {"text": "のんびりリラックス〜", "expect": "relaxed"},
+  {"text": "まったりしてます", "expect": "relaxed"},
+  {"text": "ゆったり過ごそう", "expect": "relaxed"},
+  
+  {"text": "にやり...企み中", "expect": "mischievous"},
+  {"text": "ふふふ、いたずら計画", "expect": "mischievous"},
+  {"text": "悪だくみしてる", "expect": "mischievous"},
+  
+  {"text": "応援してるよ！一緒に頑張ろう", "expect": "supportive"},
+  {"text": "サポートします！", "expect": "supportive"},
+  {"text": "支えになりたい", "expect": "supportive"},
+  
+  {"text": "キュンとした✨💕", "expect": "sparkle"},
+  {"text": "ときめいちゃった", "expect": "sparkle"},
+  {"text": "きらめきを感じる", "expect": "sparkle"},
+  
+  {"text": "こんにちは", "expect": "neutral"},
+  {"text": "はい、分かりました", "expect": "neutral"},
+  {"text": "了解です", "expect": "neutral"}
+]
