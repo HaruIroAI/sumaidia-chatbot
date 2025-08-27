@@ -1,52 +1,52 @@
-export async function handler() {
-  const headers = { "content-type":"application/json", "access-control-allow-origin":"*" };
+export async function handler(event) {
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    const model  = process.env.OPENAI_MODEL || "gpt-5-mini";
-    if (!apiKey) return { statusCode:500, headers, body: JSON.stringify({ ok:false, error:"Missing OPENAI_API_KEY" }) };
+    // いま実行中のオリジン（Deploy Preview / 本番どちらでも OK）
+    const origin = new URL(event.rawUrl).origin;
 
-    const input = [
-      { role:"system", content:[{type:"input_text", text:"『pong』と1語だけ返す"}] },
-      { role:"user",   content:[{type:"input_text", text:"ping"}] }
-    ];
+    // /chat?raw=1 を同一オリジンで叩く（本番と同一パイプライン）
+    const payload = {
+      input: [
+        { role: 'system', content: [{ type: 'input_text', text: '「pong」と1語だけ返す' }] },
+        { role: 'user',   content: [{ type: 'input_text', text: 'ping' }] }
+      ],
+      max_output_tokens: 16
+    };
 
-    const r = await fetch("https://api.openai.com/v1/responses", {
-      method:"POST",
-      headers:{ "content-type":"application/json", "authorization":`Bearer ${apiKey}` },
-      body: JSON.stringify({ model, input, max_output_tokens: 30 })
+    const res = await fetch(`${origin}/.netlify/functions/chat?raw=1`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
     });
 
-    const raw = await r.text(); // ★ raw で受ける
-    let data = null;
-    try { data = JSON.parse(raw); } catch {}
+    const model = res.headers.get('x-model') || process.env.OPENAI_MODEL || 'gpt-5-mini';
+    const data  = await res.json().catch(() => ({}));
 
-    const extract = (d) => {
-      if (!d) return "";
-      if (typeof d.output_text === "string" && d.output_text.trim()) return d.output_text.trim();
-      if (Array.isArray(d.output)) {
-        const texts = [];
-        for (const p of d.output) {
-          const parts = Array.isArray(p?.content) ? p.content : [];
-          for (const c of parts) {
-            if ((c?.type === "output_text" || c?.type === "text") && typeof c.text === "string") {
-              texts.push(c.text);
-            }
-          }
-        }
-        return texts.join("").trim();
-      }
-      return "";
+    const text = data?.choices?.[0]?.message?.content?.trim() || '';
+    const ok   = text === 'pong';
+
+    const body = {
+      ok,
+      expected: 'pong',
+      sample: text,
+      model
     };
 
-    const text = extract(data);
-    const ok = text.trim().toLowerCase() === "pong";
+    // デバッグ時は raw を同梱
+    const u = new URL(event.rawUrl);
+    if (u.searchParams.get('debug') === '1') {
+      body.raw = data;
+    }
 
     return {
-      statusCode: r.ok && ok ? 200 : 500,
-      headers,
-      body: JSON.stringify({ ok, model: (data?.model || model), sample: text, debug: !ok ? { status:r.status, raw } : undefined })
+      statusCode: ok ? 200 : 500,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
     };
-  } catch (e) {
-    return { statusCode:500, headers, body: JSON.stringify({ ok:false, error:String(e?.message||e) }) };
+  } catch (err) {
+    return {
+      statusCode: 500,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ok: false, error: String(err) })
+    };
   }
 }

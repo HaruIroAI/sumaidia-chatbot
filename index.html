@@ -995,7 +995,7 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             } catch (error) {
                 console.error('ChatGPT API Error:', error);
                 // エラー時は文脈に応じたフォールバック
-                const contexts = analyzeContext(message);
+                const contexts = analyzeContext(userMessage);
                 if (contexts.includes('pricing')) {
                     return 'あら〜、ちょっと調子悪いみたい💦 でも名刺は100枚3,000円〜、チラシはA4/1,000枚5,000円〜だよ！詳しくは直接お問い合わせして〜✨';
                 }
@@ -1020,7 +1020,7 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
         }
         
         // Analyze context from user message
-        function analyzeContext(message) {
+        function analyzeContext(userMessage) {
             const contexts = {
                 pricing: ['価格', '料金', '値段', 'いくら', '見積', '費用', '金額', 'コスト', '予算', '円'],
                 delivery: ['納期', 'いつ', '急ぎ', '特急', '日数', '期限', '締切', '間に合', 'すぐ', '即日', '当日', '明日'],
@@ -1035,7 +1035,7 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             };
             
             const detectedContexts = [];
-            const lowerMessage = message.toLowerCase();
+            const lowerMessage = userMessage.toLowerCase();
             
             for (const [context, keywords] of Object.entries(contexts)) {
                 if (keywords.some(keyword => lowerMessage.includes(keyword))) {
@@ -1205,7 +1205,7 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             
             // Add user message
             addMessage(userMessage, true);
-            conversationManager.addMessage(userMessage, true);
+            conversationManager.addMessage(userMessage, true); // ConversationManagerに追加
             messageInput.value = '';
             
             // Show typing indicator
