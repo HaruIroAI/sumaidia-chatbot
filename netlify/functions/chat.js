@@ -29,7 +29,6 @@ export async function handler(event) {
       body: JSON.stringify({
         model,
         input,
-        temperature: 0.7,
         max_output_tokens: 300,   // ← ここを修正！
       }),
     });
