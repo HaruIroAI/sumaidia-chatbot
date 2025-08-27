@@ -1,116 +1,52 @@
-import { extractText } from "./_extractText.js";
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 export async function handler(event) {
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    const model = process.env.OPENAI_MODEL || 'gpt-5-mini';
-    
-    if (!apiKey) {
-      return { 
-        statusCode: 500, 
-        headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
-        body: JSON.stringify({ ok: false, error: 'Missing OPENAI_API_KEY' })
-      };
-    }
+    // いま実行中のオリジン（Deploy Preview / 本番どちらでも OK）
+    const origin = new URL(event.rawUrl).origin;
 
-    // Check debug mode
-    const url = new URL(event.rawUrl || `https://${event.headers.host}${event.path || ''}`);
-    const debug = url.searchParams.get('debug') === '1';
-
-    // Prepare the request body
-    const requestBody = {
-      model: model,
+    // /chat?raw=1 を同一オリジンで叩く（本番と同一パイプライン）
+    const payload = {
       input: [
         { role: 'system', content: [{ type: 'input_text', text: '「pong」と1語だけ返す' }] },
-        { role: 'user', content: [{ type: 'input_text', text: 'ping' }] }
+        { role: 'user',   content: [{ type: 'input_text', text: 'ping' }] }
       ],
-      text: { format: { type: 'text' }, verbosity: 'low' },
-      reasoning: { effort: 'low' },
-      max_output_tokens: 8
+      max_output_tokens: 16
     };
 
-    let data = null;
-    let text = '';
-    const maxRetries = 3;
+    const res = await fetch(`${origin}/.netlify/functions/chat?raw=1`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
 
-    // Retry logic: max 3 attempts
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      if (attempt > 1) {
-        await sleep(200); // 200ms delay between retries
-      }
+    const model = res.headers.get('x-model') || process.env.OPENAI_MODEL || 'gpt-5-mini';
+    const data  = await res.json().catch(() => ({}));
 
-      const response = await fetch('https://api.openai.com/v1/responses', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(requestBody)
-      });
+    const text = data?.choices?.[0]?.message?.content?.trim() || '';
+    const ok   = text === 'pong';
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        return {
-          statusCode: response.status,
-          headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
-          body: JSON.stringify({ ok: false, error: 'OpenAI error', details: errorData })
-        };
-      }
-
-      data = await response.json();
-      
-      // Check if response is complete and has output_text
-      if (data?.status !== 'incomplete' && data?.output) {
-        text = extractText(data);
-        if (text) break; // Success, exit retry loop
-      }
-    }
-
-    // Strict check: must be exactly 'pong'
-    const ok = text === 'pong';
-    
-    // Build response payload
-    const payload = {
+    const body = {
       ok,
       expected: 'pong',
       sample: text,
-      model: data?.model || model
+      model
     };
 
-    // Add debug info if requested
-    if (debug && data) {
-      payload.debug = {
-        status: data?.status,
-        incomplete: data?.incomplete_details,
-        usage: data?.usage
-      };
+    // デバッグ時は raw を同梱
+    const u = new URL(event.rawUrl);
+    if (u.searchParams.get('debug') === '1') {
+      body.raw = data;
     }
 
     return {
       statusCode: ok ? 200 : 500,
-      headers: {
-        'content-type': 'application/json',
-        'access-control-allow-origin': '*',
-        'x-model': data?.model || model
-      },
-      body: JSON.stringify(payload)
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
     };
-
-  } catch (e) {
+  } catch (err) {
     return {
       statusCode: 500,
-      headers: {
-        'content-type': 'application/json',
-        'access-control-allow-origin': '*'
-      },
-      body: JSON.stringify({ 
-        ok: false, 
-        error: String(e.message || e) 
-      })
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ok: false, error: String(err) })
     };
   }
 }
