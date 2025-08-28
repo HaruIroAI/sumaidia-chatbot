@@ -1,4 +1,14 @@
 const { extractText } = require("./_extractText.js");
+const path = require('path');
+const { pathToFileURL } = require('url');
+
+/**
+ * Convert relative path to file URL for ESM import
+ */
+function fileUrlFromRoot(rel) {
+  const base = process.env.LAMBDA_TASK_ROOT || __dirname; // Netlify: /var/task
+  return pathToFileURL(path.join(base, rel)).href;
+}
 
 /**
  * Cached ESM module loaders with lazy loading
@@ -7,21 +17,21 @@ let _intentMod, _routerMod, _promptMod;
 
 async function loadIntent() {
   if (!_intentMod) {
-    _intentMod = await import('../../src/intent/intent-classifier.mjs');
+    _intentMod = await import(fileUrlFromRoot('src/intent/intent-classifier.mjs'));
   }
   return _intentMod;
 }
 
 async function loadRouter() {
   if (!_routerMod) {
-    _routerMod = await import('../../src/agent/router.mjs');
+    _routerMod = await import(fileUrlFromRoot('src/agent/router.mjs'));
   }
   return _routerMod;
 }
 
 async function loadPrompt() {
   if (!_promptMod) {
-    _promptMod = await import('../../src/prompt/build-system-prompt.mjs');
+    _promptMod = await import(fileUrlFromRoot('src/prompt/build-system-prompt.mjs'));
   }
   return _promptMod;
 }
@@ -68,14 +78,13 @@ function sanitizePayload(obj) {
  */
 function toResponsesPayload({ input, max_output_tokens }) {
   const capped = Math.min(512, Number(max_output_tokens || 256));
-  const payload = {
+  return sanitizePayload({
     model: process.env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07',
     input: input || [],
     max_output_tokens: capped,
     text: { format: { type: 'text' }, verbosity: 'low' },
     reasoning: { effort: 'low' }
-  };
-  return sanitizePayload(payload);
+  });
 }
 
 /**
