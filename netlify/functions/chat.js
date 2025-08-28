@@ -28,26 +28,49 @@ function parseJson(str) {
   }
 }
 
+/**
+ * Retry function for handling transient errors
+ */
+async function withRetry(fn, { tries = 3, base = 250 } = {}) {
+  let lastErr;
+  for (let i = 0; i < tries; i++) {
+    try { 
+      return await fn(); 
+    } catch (e) {
+      lastErr = e;
+      const msg = e?.message || '';
+      const is5xx = /5\d\d/.test(e?.status?.toString?.() || '');
+      const serverErr = msg.includes('server_error');
+      
+      if (i < tries - 1 && (is5xx || serverErr)) {
+        await new Promise(r => setTimeout(r, base * (i + 1) + Math.random() * 200));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastErr;
+}
+
 export async function handler(event) {
   try {
     const body = parseJson(event.body);
     const apiKey = process.env.OPENAI_API_KEY;
     const model = process.env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07';
     
-    // Extract session ID from headers or generate one
+    // Parse URL for raw mode detection
+    const url = new URL(event.rawUrl || event.url || 'http://localhost');
+    const isRaw = url.searchParams.get('raw') === '1';
+    
+    // Extract session ID
     const sessionId = event.headers?.['x-session-id'] || 
                      event.headers?.['X-Session-Id'] || 
                      `session-${Date.now()}`;
 
-    // Check for raw mode
-    const url = new URL(event.rawUrl || event.url || 'http://localhost');
-    const isRaw = url.searchParams.get('raw') === '1';
-
-    // Initialize domain tracking
-    let domain = 'general';
+    // Initialize domain
+    let domain = 'unknown';
     
-    // Process routing for normal mode
-    let faqResponse = null;
+    // Process routing and FAQ check for normal mode
     if (!isRaw && body.messages) {
       const messages = body.messages || [];
       const userMessages = messages.filter(m => m.role === 'user');
@@ -81,11 +104,13 @@ export async function handler(event) {
             'x-backend': 'faq',
             'x-faq-match': 'true',
             'x-faq-score': String(routingResult.faqAnswer.score || 1.0),
-            'x-faq-type': routingResult.faqAnswer.matchType || 'partial'
+            'x-faq-type': routingResult.faqAnswer.matchType || 'partial',
+            'x-deploy-id': process.env.DEPLOY_ID || '',
+            'x-commit': process.env.COMMIT_REF || ''
           });
           
-          // Return FAQ answer directly without AI generation
-          faqResponse = {
+          // Return FAQ answer directly
+          return {
             statusCode: 200,
             headers: Object.fromEntries(headers),
             body: JSON.stringify({
@@ -103,51 +128,46 @@ export async function handler(event) {
               }
             })
           };
-        } else {
-          // No FAQ match, proceed with AI generation
-          // Get session state for filled slots
-          const sessionState = router.getSession(sessionId, domain);
-          
-          // Build system prompt with all necessary context
-          const systemPrompt = buildSystemPrompt({
-            domain: domain,
-            playbook: routingResult.playbookData,
-            missingSlots: routingResult.missingSlots,
-            styleHints: {
-              confidence: intentResult.confidence,
-              faqMatched: false
-            },
-            routingResult: routingResult,
-            userContext: {
-              sessionId: sessionId,
-              timestamp: Date.now(),
-              previousMessages: messages.slice(0, -1),
-              session: sessionState
-            },
-            model: model
-          });
-
-          // Build conversation with routing-aware system prompt
-          const conversationMessages = buildConversationPrompt({
-            systemPrompt: systemPrompt,
-            messages: messages
-          });
-
-          // Replace original messages with routed conversation
-          body.messages = conversationMessages;
         }
+        
+        // No FAQ match, proceed with AI generation
+        // Get session state for filled slots
+        const sessionState = router.getSession(sessionId, domain);
+        
+        // Build system prompt
+        const systemPrompt = buildSystemPrompt({
+          domain: domain,
+          playbook: routingResult.playbookData,
+          missingSlots: routingResult.missingSlots,
+          styleHints: {
+            confidence: intentResult.confidence,
+            faqMatched: false
+          },
+          routingResult: routingResult,
+          userContext: {
+            sessionId: sessionId,
+            timestamp: Date.now(),
+            previousMessages: messages.slice(0, -1),
+            session: sessionState
+          },
+          model: model
+        });
+
+        // Build conversation with routing-aware system prompt
+        const conversationMessages = buildConversationPrompt({
+          systemPrompt: systemPrompt,
+          messages: messages
+        });
+
+        // Replace original messages with routed conversation
+        body.messages = conversationMessages;
       }
-    }
-    
-    // Return FAQ response immediately if found
-    if (faqResponse) {
-      return faqResponse;
     }
 
     // 1) Determine input based on mode
     const input = isRaw
-      ? body.input  // raw mode: pass through as-is
-      : toResponsesInputFromMessages(body.messages || []);  // normal mode: convert messages
+      ? body.input
+      : toResponsesInputFromMessages(body.messages || []);
 
     // 2) Create unified OpenAI payload
     const payload = {
@@ -166,7 +186,9 @@ export async function handler(event) {
       'x-model': payload.model,
       'x-session-id': sessionId,
       'x-domain': domain,
-      'x-backend': 'openai'
+      'x-backend': 'openai',
+      'x-deploy-id': process.env.DEPLOY_ID || '',
+      'x-commit': process.env.COMMIT_REF || ''
     });
 
     // Check for API key
@@ -178,19 +200,46 @@ export async function handler(event) {
       };
     }
 
-    // 4) Call OpenAI Responses API
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(payload)
-    });
+    // 4) Call OpenAI Responses API with retry
+    let response, data;
+    try {
+      const result = await withRetry(async () => {
+        const res = await fetch('https://api.openai.com/v1/responses', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        const json = await res.json();
+        
+        // Throw error for retry on 5xx
+        if (!res.ok && res.status >= 500) {
+          const error = new Error(`OpenAI error: ${res.status}`);
+          error.status = res.status;
+          throw error;
+        }
+        
+        return { response: res, data: json };
+      });
+      
+      response = result.response;
+      data = result.data;
+    } catch (retryError) {
+      // After all retries failed
+      return {
+        statusCode: 503,
+        headers: Object.fromEntries(headers),
+        body: JSON.stringify({ 
+          error: 'Service temporarily unavailable',
+          message: String(retryError?.message || retryError)
+        })
+      };
+    }
 
-    const data = await response.json();
-
-    // Handle OpenAI errors
+    // Handle non-5xx OpenAI errors
     if (!response.ok) {
       return {
         statusCode: response.status,
@@ -202,53 +251,24 @@ export async function handler(event) {
       };
     }
 
-    // 5) Extract text and handle empty output
-    let text = extractText(data);
+    // 5) Extract text
+    const text = extractText(data);
 
+    // Handle empty output
     if (!text) {
-      // For raw mode, try retry logic
-      if (isRaw) {
-        const retryPayload = {
-          ...payload,
-          max_output_tokens: Math.min(1024, payload.max_output_tokens * 2),
-          reasoning: { effort: 'medium' },
-          text: { format: { type: 'text' }, verbosity: 'medium' }
-        };
-        
-        const retryResponse = await fetch('https://api.openai.com/v1/responses', {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify(retryPayload)
-        });
-        
-        if (retryResponse.ok) {
-          const retryData = await retryResponse.json();
-          text = extractText(retryData);
-        }
-        
-        // Ultimate fallback for raw mode ping test
-        if (!text) {
-          text = 'pong';
-        }
-      } else {
-        // Return 502 for empty output (no fallback message)
-        return {
-          statusCode: 502,
-          headers: Object.fromEntries(headers),
-          body: JSON.stringify({
-            error: 'empty_output',
-            debug: { 
-              status: data?.status, 
-              incomplete: data?.incomplete_details || null,
-              model: model,
-              domain: domain
-            }
-          })
-        };
-      }
+      return {
+        statusCode: 502,
+        headers: Object.fromEntries(headers),
+        body: JSON.stringify({
+          error: 'empty_output',
+          debug: { 
+            status: data?.status, 
+            incomplete: data?.incomplete_details || null,
+            model: model,
+            domain: domain
+          }
+        })
+      };
     }
 
     // Extract emotion tag if present
@@ -290,8 +310,11 @@ export async function handler(event) {
       'content-type': 'application/json',
       'access-control-allow-origin': '*',
       'x-model': process.env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07',
+      'x-session-id': event.headers?.['x-session-id'] || '',
       'x-domain': 'error',
-      'x-backend': 'openai'
+      'x-backend': 'openai',
+      'x-deploy-id': process.env.DEPLOY_ID || '',
+      'x-commit': process.env.COMMIT_REF || ''
     });
 
     return {
