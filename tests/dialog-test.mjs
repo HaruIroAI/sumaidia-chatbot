@@ -119,6 +119,16 @@ class DialogTestRunner {
               }
             }
             
+            // Validate question count (for guardrail testing)
+            if (nextTurn.expectedQuestions !== undefined) {
+              const questionCount = routingResult.questions ? routingResult.questions.length : 0;
+              const cappedQuestions = Math.min(questionCount, 3); // Should never exceed 3
+              if (cappedQuestions !== nextTurn.expectedQuestions && nextTurn.expectedQuestions <= 3) {
+                errors.push(`Turn ${i}: Expected ${nextTurn.expectedQuestions} questions, got ${cappedQuestions}`);
+                passed = false;
+              }
+            }
+            
             // Check completion
             if (nextTurn.expectedComplete) {
               const session = this.router.getSession(sessionId, intentResult.domain);

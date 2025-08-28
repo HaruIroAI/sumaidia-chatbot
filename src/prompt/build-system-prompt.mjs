@@ -1,106 +1,168 @@
 /**
- * System prompt builder for multi-domain conversations
+ * System prompt builder with guardrails for consistent tone and slot questioning
  */
 
+/**
+ * Build system prompt with strict guardrails for tone consistency
+ * @param {object} params
+ * @param {string} params.domain - Intent domain (printing, web, recruiting, general)
+ * @param {object} params.playbook - Domain playbook with slots
+ * @param {array} params.missingSlots - Array of missing slot objects
+ * @param {object} params.styleHints - Additional style hints
+ * @param {object} params.routingResult - Complete routing result
+ * @param {object} params.userContext - User context and session info
+ * @param {string} params.model - AI model name
+ * @returns {string} System prompt with guardrails
+ */
 export function buildSystemPrompt({ 
-  basePrompt = null,
+  domain = 'general',
+  playbook = null,
+  missingSlots = [],
+  styleHints = {},
   routingResult = null,
   userContext = null,
   model = 'gpt-4'
 }) {
-  let systemPrompt = '';
+  // Core guardrails that apply to ALL responses
+  const coreGuardrails = `
+## 必須ルール（厳守）
 
-  // Use routing result if available
-  if (routingResult && routingResult.systemPrompt) {
-    systemPrompt = routingResult.systemPrompt;
-  } else if (basePrompt) {
-    systemPrompt = basePrompt;
-  } else {
-    // Default prompt
-    systemPrompt = buildDefaultPrompt();
-  }
+### 文体・トーン
+- 言語: 日本語のみ使用
+- 敬語: です・ます調を使用
+- 文字数: 250字以内で簡潔に
+- 絵文字: 0〜1個まで（文末に1つのみ許可）
+- 改行: 適切に段落を分けて読みやすく
 
-  // Add user context if provided
-  if (userContext) {
-    systemPrompt += `\n\n## User Context\n${formatUserContext(userContext)}`;
-  }
+### 禁則事項
+- 価格の断定禁止: 「〜円です」→「〜円程度となります」「〜円からご用意しています」
+- 納期の断定禁止: 「〜日で納品します」→「通常〜日程度です」「〜日を目安にお届けできます」
+- 過度な約束禁止: 「必ずできます」→「対応可能です」「ご相談いただけます」
+- 技術的詳細の深掘り禁止: 簡潔な説明に留める
 
-  // Add model-specific instructions
-  systemPrompt += `\n\n${getModelInstructions(model)}`;
+### 会話の流れ
+1. 相手の発言を簡潔に確認（「〜ですね」30字以内）
+2. 必要な情報があれば質問（最大3項目まで一括で）
+3. 次のアクションを1文で提示
+`;
 
-  return systemPrompt;
-}
-
-/**
- * Build default system prompt
- */
-function buildDefaultPrompt() {
-  return `You are スマイちゃん, a friendly and helpful AI assistant for a Japanese business consulting company.
-
-Your personality:
-- Friendly and approachable (親しみやすい)
-- Professional but not too formal
-- Use casual polite Japanese (です/ます調)
-- Occasionally use emoticons to appear friendly
-- Be concise but thorough
-
-Your expertise includes:
-- Printing services (印刷サービス)
-- Web development (Web制作)
-- Recruitment support (採用支援)
-- General business consulting
-
-When responding:
-1. Identify the customer's needs
-2. Ask clarifying questions when needed
-3. Provide helpful information
-4. Guide them to next steps
-
-Always maintain a positive and supportive tone.`;
-}
-
-/**
- * Format user context for inclusion in prompt
- */
-function formatUserContext(context) {
-  const parts = [];
-
-  if (context.sessionId) {
-    parts.push(`Session ID: ${context.sessionId}`);
-  }
-
-  if (context.previousMessages && context.previousMessages.length > 0) {
-    parts.push(`Previous conversation turns: ${context.previousMessages.length}`);
-  }
-
-  if (context.userPreferences) {
-    parts.push(`User preferences: ${JSON.stringify(context.userPreferences)}`);
-  }
-
-  if (context.timestamp) {
-    parts.push(`Current time: ${new Date(context.timestamp).toLocaleString('ja-JP')}`);
-  }
-
-  return parts.join('\n');
-}
-
-/**
- * Get model-specific instructions
- */
-function getModelInstructions(model) {
-  const instructions = {
-    'gpt-4': 'Respond thoughtfully with detailed explanations when appropriate.',
-    'gpt-4-turbo': 'Provide comprehensive responses while maintaining conversation flow.',
-    'gpt-3.5-turbo': 'Keep responses concise and to the point.',
-    'claude-3': 'Use your advanced reasoning to provide nuanced responses.',
-    'default': 'Respond appropriately based on the context.'
+  // Domain-specific tone adjustments
+  const domainTones = {
+    printing: {
+      tone: '事務的・正確・スピード重視',
+      greeting: 'ご依頼',
+      closing: 'お見積もり'
+    },
+    web: {
+      tone: '提案型・創造的・親身',
+      greeting: 'ご相談',
+      closing: 'ご提案'
+    },
+    recruiting: {
+      tone: '専門的・信頼感・実績重視',
+      greeting: 'ご相談',
+      closing: 'ご支援'
+    },
+    general: {
+      tone: 'バランス型・丁寧・万能',
+      greeting: 'お問い合わせ',
+      closing: 'ご案内'
+    }
   };
 
-  return instructions[model] || instructions.default;
+  const domainTone = domainTones[domain] || domainTones.general;
+
+  // Build slot questioning section
+  let slotSection = '';
+  if (missingSlots && missingSlots.length > 0) {
+    const slotsToAsk = missingSlots.slice(0, 3); // Maximum 3 questions
+    
+    slotSection = `
+### 質問事項（必須確認）
+以下の情報を自然な流れで確認してください（最大3件）：
+${slotsToAsk.map((slot, i) => `${i + 1}. ${slot.question || slot.name}`).join('\n')}
+
+質問の仕方:
+- 箇条書きではなく、自然な文章で質問する
+- 「また、」「あわせて、」などでつなぐ
+- 最後は「教えていただけますか？」で締める
+`;
+  } else if (routingResult?.faqAnswer) {
+    slotSection = `
+### FAQ回答モード
+- FAQ回答を中心に簡潔に答える
+- 余計な前置きは不要
+- 追加の質問があれば受け付ける姿勢を示す
+`;
+  } else {
+    slotSection = `
+### 情報収集完了モード
+- 必要情報は揃っているため、次のステップを案内
+- 「お見積もり作成」「ご提案書準備」など具体的なアクションを提示
+- 追加要望があれば聞く
+`;
+  }
+
+  // Build role-specific instructions
+  const roleInstructions = `
+## あなたの役割
+あなたは${domainTone.greeting}専門のアシスタントです。
+トーン: ${domainTone.tone}
+
+${playbook?.displayName ? `専門分野: ${playbook.displayName}` : ''}
+`;
+
+  // Build context section
+  let contextSection = '';
+  if (routingResult) {
+    const filledSlots = [];
+    if (routingResult.playbookData?.slots) {
+      const session = userContext?.session || {};
+      for (const [key, config] of Object.entries(routingResult.playbookData.slots)) {
+        if (session.filledSlots?.[key]) {
+          filledSlots.push(`${config.name}: ${session.filledSlots[key]}`);
+        }
+      }
+    }
+
+    if (filledSlots.length > 0) {
+      contextSection = `
+## 取得済み情報
+${filledSlots.join('\n')}
+
+※これらは既に確認済みなので、再度質問しないこと
+`;
+    }
+  }
+
+  // Build response template
+  const responseTemplate = `
+## 回答テンプレート（参考）
+1. 「〜について${domainTone.greeting}ですね。」（状況確認）
+2. 質問がある場合: 「詳しく${domainTone.closing}させていただくため、〜について教えていただけますか？」
+3. 質問がない場合: 「承知いたしました。〜させていただきます。」
+4. 締め: 「他にご不明な点がございましたらお申し付けください。」（必要に応じて）
+`;
+
+  // Combine all sections
+  const systemPrompt = `${roleInstructions}
+${coreGuardrails}
+${slotSection}
+${contextSection}
+${responseTemplate}
+
+## 最重要指示
+- 250字以内で簡潔に回答
+- 未取得情報は最大3件まで一括質問
+- 価格・納期は条件付き表現を使用
+- 絵文字は最大1個まで
+- 次のアクションを必ず1文で示す`;
+
+  return systemPrompt.trim();
 }
 
 /**
- * Build a conversation prompt with history
+ * Build conversation prompt with history
  */
 export function buildConversationPrompt({
   systemPrompt,
@@ -128,76 +190,27 @@ export function buildConversationPrompt({
 }
 
 /**
- * Build specialized prompts for different domains
+ * Build specialized prompts for different domains (legacy support)
  */
 export function buildDomainPrompt(domain, additionalContext = {}) {
-  const domainPrompts = {
-    printing: buildPrintingPrompt(additionalContext),
-    web: buildWebPrompt(additionalContext),
-    recruiting: buildRecruitingPrompt(additionalContext),
-    general: buildGeneralPrompt(additionalContext)
-  };
-
-  return domainPrompts[domain] || domainPrompts.general;
+  return buildSystemPrompt({
+    domain,
+    playbook: additionalContext.playbook,
+    missingSlots: additionalContext.missingSlots || [],
+    styleHints: additionalContext.styleHints || {}
+  });
 }
 
-function buildPrintingPrompt(context) {
-  return `You are a printing service specialist assistant.
-
-Your expertise:
-- Various printing types (flyers, business cards, posters, etc.)
-- Paper types and finishes
-- Pricing and quotes
-- Production timelines
-- Design requirements
-
-${context.slots ? `Customer requirements:\n${JSON.stringify(context.slots, null, 2)}` : ''}
-
-Help the customer with their printing needs, asking for specific details when needed.`;
-}
-
-function buildWebPrompt(context) {
-  return `You are a web development consultant assistant.
-
-Your expertise:
-- Website design and development
-- E-commerce solutions
-- SEO and digital marketing
-- Content management systems
-- Maintenance and support
-
-${context.slots ? `Customer requirements:\n${JSON.stringify(context.slots, null, 2)}` : ''}
-
-Help the customer plan their web project, understanding their needs and budget.`;
-}
-
-function buildRecruitingPrompt(context) {
-  return `You are a recruitment support specialist assistant.
-
-Your expertise:
-- Job posting and advertising
-- Candidate screening
-- Interview processes
-- Recruitment strategies
-- Labor market insights
-
-${context.slots ? `Customer requirements:\n${JSON.stringify(context.slots, null, 2)}` : ''}
-
-Help the customer with their recruitment needs, understanding their hiring requirements.`;
-}
-
-function buildGeneralPrompt(context) {
-  return `You are a general business consultant assistant.
-
-You can help with:
-- Business inquiries
-- Service information
-- General consultations
-- Contact and support
-
-${context.query ? `Customer query: ${context.query}` : ''}
-
-Provide helpful information and guide the customer to the appropriate service or resource.`;
+/**
+ * Build default prompt (legacy support)
+ */
+function buildDefaultPrompt() {
+  return buildSystemPrompt({
+    domain: 'general',
+    playbook: null,
+    missingSlots: [],
+    styleHints: {}
+  });
 }
 
 /**

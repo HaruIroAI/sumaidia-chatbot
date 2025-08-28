@@ -9,9 +9,10 @@
     },
     {
       "role": "assistant",
-      "content": "チラシ印刷のご相談ですね。お見積もりを作成させていただきます。",
+      "content": "チラシ印刷のご依頼ですね。お見積もりのため、サイズ・部数・納期について教えていただけますか？",
       "expectedDomain": "printing",
-      "expectedSlots": ["product_type"]
+      "expectedSlots": ["product_type"],
+      "expectedQuestions": 3
     },
     {
       "role": "user",

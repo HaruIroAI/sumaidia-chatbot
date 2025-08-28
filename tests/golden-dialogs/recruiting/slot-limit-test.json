@@ -1,0 +1,44 @@
+{
+  "id": "recruiting-slot-limit-test",
+  "domain": "recruiting",
+  "description": "Test maximum 3 slot questions limit",
+  "dialog": [
+    {
+      "role": "user",
+      "content": "採用支援をお願いしたいです"
+    },
+    {
+      "role": "assistant",
+      "content": "採用支援のご相談ですね。募集職種、雇用形態、募集人数について教えていただけますか？",
+      "expectedDomain": "recruiting",
+      "expectedQuestions": 3,
+      "expectedMissingSlots": ["position", "employment_type", "number_of_positions", "start_date", "experience_required", "recruitment_method"],
+      "expectedAskedSlots": 3,
+      "comment": "Should ask only 3 questions even though 6 slots are missing"
+    },
+    {
+      "role": "user",
+      "content": "エンジニアを正社員で3名募集します"
+    },
+    {
+      "role": "assistant",
+      "content": "エンジニア正社員3名の募集ですね。入社時期、必要な経験、採用手法について教えていただけますか？",
+      "expectedSlots": ["position", "employment_type", "number_of_positions"],
+      "expectedQuestions": 3,
+      "expectedMissingSlots": ["start_date", "experience_required", "recruitment_method"],
+      "comment": "Should ask remaining 3 slots"
+    },
+    {
+      "role": "user",
+      "content": "来月から、経験3年以上、求人サイトで募集したいです"
+    },
+    {
+      "role": "assistant",
+      "content": "承知いたしました。最適な求人媒体をご提案させていただきます。",
+      "expectedSlots": ["start_date", "experience_required", "recruitment_method"],
+      "expectedComplete": true,
+      "expectedQuestions": 0,
+      "comment": "All slots filled, should move to next action"
+    }
+  ]
+}

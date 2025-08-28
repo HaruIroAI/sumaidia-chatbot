@@ -72,13 +72,24 @@ export async function handler(event) {
           }
         });
 
-        // Build system prompt
+        // Get session state for filled slots
+        const sessionState = router.getSession(sessionId, intentResult.domain);
+        
+        // Build system prompt with all necessary context
         finalSystemPrompt = buildSystemPrompt({
+          domain: intentResult.domain,
+          playbook: routingResult.playbookData,
+          missingSlots: routingResult.missingSlots,
+          styleHints: {
+            confidence: intentResult.confidence,
+            faqMatched: routingResult.faqAnswer !== null
+          },
           routingResult: routingResult,
           userContext: {
             sessionId: sessionId,
             timestamp: Date.now(),
-            previousMessages: messages.slice(0, -1)
+            previousMessages: messages.slice(0, -1),
+            session: sessionState
           },
           model: model
         });
