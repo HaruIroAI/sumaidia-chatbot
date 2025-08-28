@@ -1,0 +1,43 @@
+{
+  "id": "recruiting-new-grad",
+  "domain": "recruiting",
+  "description": "New graduate recruitment",
+  "dialog": [
+    {
+      "role": "user",
+      "content": "新卒採用を始めたいのですが、どこから手をつければいいでしょうか"
+    },
+    {
+      "role": "assistant",
+      "content": "新卒採用の立ち上げですね。まず募集職種と人数を教えていただけますか？",
+      "expectedDomain": "recruiting"
+    },
+    {
+      "role": "user",
+      "content": "総合職で5名程度を考えています"
+    },
+    {
+      "role": "assistant",
+      "content": "総合職5名の新卒採用ですね。いつ入社予定でしょうか？",
+      "expectedSlots": ["position", "number_of_positions", "employment_type"]
+    },
+    {
+      "role": "user",
+      "content": "来年の4月入社です"
+    },
+    {
+      "role": "assistant",
+      "content": "来年4月入社ですね。新卒採用サイトへの掲載や説明会の企画からサポートいたします。",
+      "expectedSlots": ["start_date"]
+    },
+    {
+      "role": "user",
+      "content": "説明会の運営もお願いできますか？"
+    },
+    {
+      "role": "assistant",
+      "content": "はい、説明会の企画運営も承ります。採用計画全体をご提案させていただきます。",
+      "expectedComplete": true
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "id": "recruiting-part-time",
+  "domain": "recruiting",
+  "description": "Part-time staff recruitment",
+  "dialog": [
+    {
+      "role": "user",
+      "content": "パートさんを募集したいんですが、費用はどのくらいかかりますか？"
+    },
+    {
+      "role": "assistant",
+      "content": "パート募集の費用ですね。求人広告は5万円〜となります。どのような職種でしょうか？",
+      "expectedDomain": "recruiting",
+      "expectedFAQ": true,
+      "expectedSlots": ["employment_type"]
+    },
+    {
+      "role": "user",
+      "content": "事務スタッフを3名、できるだけ早く採用したいです"
+    },
+    {
+      "role": "assistant",
+      "content": "事務スタッフのパート3名を急募ですね。どちらの地域で募集されますか？",
+      "expectedSlots": ["position", "number_of_positions"]
+    },
+    {
+      "role": "user",
+      "content": "渋谷区内です。週3日以上働ける方を希望します"
+    },
+    {
+      "role": "assistant",
+      "content": "渋谷区で週3日以上勤務可能な方ですね。Indeed等の無料掲載も併用すると効果的です。",
+      "expectedContext": "Part-time recruitment in Shibuya"
+    }
+  ]
+}

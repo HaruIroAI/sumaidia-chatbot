@@ -1,0 +1,45 @@
+{
+  "id": "web-new-site",
+  "domain": "web",
+  "description": "New website creation request",
+  "dialog": [
+    {
+      "role": "user",
+      "content": "新しくホームページを作りたいんですが"
+    },
+    {
+      "role": "assistant",
+      "content": "ホームページの新規制作ですね。どのようなサイトをお考えですか？",
+      "expectedDomain": "web",
+      "expectedSlots": ["project_type"]
+    },
+    {
+      "role": "user",
+      "content": "会社のコーポレートサイトで、10ページくらいを想定しています"
+    },
+    {
+      "role": "assistant",
+      "content": "コーポレートサイト10ページ程度ですね。必要な機能はございますか？",
+      "expectedSlots": ["page_count"]
+    },
+    {
+      "role": "user",
+      "content": "お問い合わせフォームは必須で、できればブログも書けるようにしたいです"
+    },
+    {
+      "role": "assistant",
+      "content": "お問い合わせフォームとブログ機能ですね。納期のご希望はいつ頃でしょうか？",
+      "expectedSlots": ["features"]
+    },
+    {
+      "role": "user",
+      "content": "3ヶ月以内には公開したいです。予算は50万円程度で考えています"
+    },
+    {
+      "role": "assistant",
+      "content": "3ヶ月以内の公開、ご予算50万円で承知しました。ご要望に合わせた提案書を作成いたします。",
+      "expectedSlots": ["timeline", "budget"],
+      "expectedComplete": true
+    }
+  ]
+}

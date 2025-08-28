@@ -1,0 +1,26 @@
+{
+  "id": "printing-faq-price",
+  "domain": "printing",
+  "description": "FAQ about printing prices",
+  "dialog": [
+    {
+      "role": "user",
+      "content": "名刺印刷の料金はいくらですか？"
+    },
+    {
+      "role": "assistant",
+      "content": "名刺印刷の料金についてですね。印刷料金は仕様により変動します。",
+      "expectedDomain": "printing",
+      "expectedFAQ": true
+    },
+    {
+      "role": "user",
+      "content": "100枚でだいたいの目安を教えてください"
+    },
+    {
+      "role": "assistant",
+      "content": "名刺100枚の場合、一般的な仕様で3,000円〜5,000円程度が目安です。",
+      "expectedSlots": ["product_type", "quantity"]
+    }
+  ]
+}

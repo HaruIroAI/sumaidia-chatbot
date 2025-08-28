@@ -1,0 +1,35 @@
+{
+  "id": "web-seo-inquiry",
+  "domain": "web",
+  "description": "SEO service inquiry",
+  "dialog": [
+    {
+      "role": "user",
+      "content": "SEO対策はしてもらえますか？"
+    },
+    {
+      "role": "assistant",
+      "content": "はい、SEO対策も承っております。基本的なSEO対策は標準で含まれます。",
+      "expectedDomain": "web",
+      "expectedFAQ": true
+    },
+    {
+      "role": "user",
+      "content": "既存のサイトのSEO改善もお願いできますか？"
+    },
+    {
+      "role": "assistant",
+      "content": "既存サイトのSEO改善も可能です。現在のサイトURLを教えていただけますか？",
+      "expectedSlots": ["project_type"]
+    },
+    {
+      "role": "user",
+      "content": "https://example.com です。検索順位を上げたいです"
+    },
+    {
+      "role": "assistant",
+      "content": "サイトを確認させていただきます。どのようなキーワードで上位表示を目指しますか？",
+      "expectedContext": "SEO improvement project"
+    }
+  ]
+}

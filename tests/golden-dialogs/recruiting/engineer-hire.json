@@ -1,0 +1,45 @@
+{
+  "id": "recruiting-engineer-hire",
+  "domain": "recruiting",
+  "description": "Engineer recruitment request",
+  "dialog": [
+    {
+      "role": "user",
+      "content": "エンジニアを採用したいです"
+    },
+    {
+      "role": "assistant",
+      "content": "エンジニア採用のご相談ですね。どのような職種のエンジニアをお探しですか？",
+      "expectedDomain": "recruiting",
+      "expectedSlots": ["position"]
+    },
+    {
+      "role": "user",
+      "content": "フロントエンドエンジニアで、正社員を2名募集したいです"
+    },
+    {
+      "role": "assistant",
+      "content": "フロントエンドエンジニアの正社員2名ですね。必要な経験やスキルはございますか？",
+      "expectedSlots": ["employment_type", "number_of_positions"]
+    },
+    {
+      "role": "user",
+      "content": "React経験3年以上の方が理想です。来月から働ける方を探しています"
+    },
+    {
+      "role": "assistant",
+      "content": "React経験3年以上で来月入社可能な方ですね。採用手法はどのようにお考えですか？",
+      "expectedSlots": ["experience_required", "start_date"]
+    },
+    {
+      "role": "user",
+      "content": "求人サイトへの掲載を考えています"
+    },
+    {
+      "role": "assistant",
+      "content": "求人広告での募集ですね。エンジニア採用に強い媒体をご提案いたします。",
+      "expectedSlots": ["recruitment_method"],
+      "expectedComplete": true
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "domain": "printing",
+  "displayName": "印刷サービス",
+  "slots": {
+    "product_type": {
+      "name": "印刷物の種類",
+      "question": "どのような印刷物をご希望ですか？（チラシ、パンフレット、名刺など）",
+      "required": true,
+      "examples": ["チラシ", "パンフレット", "名刺", "ポスター", "冊子"]
+    },
+    "quantity": {
+      "name": "数量",
+      "question": "何部（枚）印刷をご希望ですか？",
+      "required": true,
+      "examples": ["100部", "1000枚", "5000部"]
+    },
+    "size": {
+      "name": "サイズ",
+      "question": "サイズはどのくらいをお考えですか？（A4、B5など）",
+      "required": false,
+      "examples": ["A4", "B5", "A3", "名刺サイズ"]
+    },
+    "deadline": {
+      "name": "納期",
+      "question": "いつまでに必要ですか？納期のご希望を教えてください。",
+      "required": true,
+      "examples": ["1週間以内", "今月末まで", "急ぎ"]
+    },
+    "paper_type": {
+      "name": "用紙",
+      "question": "用紙の種類にご希望はありますか？（光沢紙、マット紙など）",
+      "required": false,
+      "examples": ["光沢紙", "マット紙", "上質紙", "コート紙"]
+    },
+    "color": {
+      "name": "カラー",
+      "question": "カラー印刷ですか？モノクロ印刷ですか？",
+      "required": false,
+      "examples": ["フルカラー", "モノクロ", "2色印刷"]
+    }
+  },
+  "responses": {
+    "greeting": "印刷に関するお問い合わせですね。詳細をお伺いします。",
+    "confirmation": "承知いたしました。お見積もりを作成させていただきます。",
+    "missing_slots": "詳細なお見積もりのため、以下の情報を教えていただけますか？"
+  }
+}

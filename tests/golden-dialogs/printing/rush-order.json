@@ -1,0 +1,35 @@
+{
+  "id": "printing-rush-order",
+  "domain": "printing",
+  "description": "Rush printing order",
+  "dialog": [
+    {
+      "role": "user",
+      "content": "明日までにポスターが必要なんですが可能ですか？"
+    },
+    {
+      "role": "assistant",
+      "content": "特急印刷のご相談ですね。明日納品も対応可能です。詳細を教えてください。",
+      "expectedDomain": "printing",
+      "expectedSlots": ["product_type", "deadline"]
+    },
+    {
+      "role": "user",
+      "content": "A2サイズ10枚です"
+    },
+    {
+      "role": "assistant",
+      "content": "A2サイズのポスター10枚を明日納品で承ります。特急料金が発生しますがよろしいですか？",
+      "expectedSlots": ["size", "quantity"]
+    },
+    {
+      "role": "user",
+      "content": "大丈夫です。いくらになりますか？"
+    },
+    {
+      "role": "assistant",
+      "content": "特急印刷料金を含めて概算で20,000円〜25,000円程度となります。正式なお見積もりをお送りします。",
+      "expectedComplete": true
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "domain": "recruiting",
+  "displayName": "採用支援サービス",
+  "slots": {
+    "position": {
+      "name": "募集職種",
+      "question": "どのような職種の方を募集されますか？",
+      "required": true,
+      "examples": ["営業", "エンジニア", "事務", "製造", "接客"]
+    },
+    "employment_type": {
+      "name": "雇用形態",
+      "question": "雇用形態は何ですか？（正社員、パート、アルバイトなど）",
+      "required": true,
+      "examples": ["正社員", "契約社員", "パート", "アルバイト", "派遣"]
+    },
+    "number_of_positions": {
+      "name": "募集人数",
+      "question": "何名程度の採用をお考えですか？",
+      "required": true,
+      "examples": ["1名", "2-3名", "5名以上", "複数名"]
+    },
+    "start_date": {
+      "name": "入社時期",
+      "question": "いつから勤務開始を希望されますか？",
+      "required": false,
+      "examples": ["即日", "来月から", "4月から", "相談の上"]
+    },
+    "experience_required": {
+      "name": "必要経験",
+      "question": "必要な経験やスキルはありますか？",
+      "required": false,
+      "examples": ["未経験可", "経験者優遇", "3年以上", "資格必須"]
+    },
+    "recruitment_method": {
+      "name": "採用手法",
+      "question": "どのような採用手法をお考えですか？（求人広告、人材紹介など）",
+      "required": false,
+      "examples": ["求人広告", "人材紹介", "ダイレクトリクルーティング", "リファラル"]
+    }
+  },
+  "responses": {
+    "greeting": "採用に関するご相談ですね。どのような人材をお探しですか？",
+    "confirmation": "承知いたしました。最適な採用プランをご提案させていただきます。",
+    "missing_slots": "より具体的なご提案のため、以下の点を教えていただけますか？"
+  }
+}

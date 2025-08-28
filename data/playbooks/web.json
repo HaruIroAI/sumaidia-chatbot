@@ -1,0 +1,47 @@
+{
+  "domain": "web",
+  "displayName": "Web制作サービス",
+  "slots": {
+    "project_type": {
+      "name": "プロジェクトタイプ",
+      "question": "新規制作ですか？リニューアルですか？",
+      "required": true,
+      "examples": ["新規制作", "リニューアル", "部分改修", "機能追加"]
+    },
+    "page_count": {
+      "name": "ページ数",
+      "question": "何ページ程度のサイトをお考えですか？",
+      "required": false,
+      "examples": ["5ページ", "10ページ", "20ページ以上", "LP1枚"]
+    },
+    "features": {
+      "name": "必要機能",
+      "question": "必要な機能はありますか？（お問い合わせフォーム、予約システムなど）",
+      "required": true,
+      "examples": ["お問い合わせフォーム", "予約システム", "EC機能", "会員機能", "ブログ"]
+    },
+    "design_preference": {
+      "name": "デザイン希望",
+      "question": "デザインのご希望やイメージはありますか？",
+      "required": false,
+      "examples": ["シンプル", "高級感", "親しみやすい", "モダン", "和風"]
+    },
+    "budget": {
+      "name": "予算",
+      "question": "ご予算はどのくらいをお考えですか？",
+      "required": false,
+      "examples": ["30万円以内", "50万円程度", "100万円以上"]
+    },
+    "timeline": {
+      "name": "希望納期",
+      "question": "いつまでに公開したいですか？",
+      "required": true,
+      "examples": ["1ヶ月以内", "3ヶ月以内", "半年以内", "特に急がない"]
+    }
+  },
+  "responses": {
+    "greeting": "Webサイト制作のご相談ですね。詳しくお聞かせください。",
+    "confirmation": "ありがとうございます。ご要望に合わせた提案書を作成いたします。",
+    "missing_slots": "より良いご提案のため、以下について教えていただけますか？"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "printing-basic-quote",
+  "domain": "printing",
+  "description": "Basic printing quote request",
+  "dialog": [
+    {
+      "role": "user",
+      "content": "チラシの印刷をお願いしたいです"
+    },
+    {
+      "role": "assistant",
+      "content": "チラシ印刷のご相談ですね。お見積もりを作成させていただきます。",
+      "expectedDomain": "printing",
+      "expectedSlots": ["product_type"]
+    },
+    {
+      "role": "user",
+      "content": "A4サイズで1000部、来週までに欲しいです"
+    },
+    {
+      "role": "assistant",
+      "content": "承知いたしました。A4サイズのチラシ1000部を来週までにお届けですね。",
+      "expectedSlots": ["product_type", "size", "quantity", "deadline"]
+    },
+    {
+      "role": "user",
+      "content": "フルカラーでお願いします。用紙は光沢のあるものがいいです"
+    },
+    {
+      "role": "assistant",
+      "content": "フルカラー印刷で光沢紙をご希望ですね。お見積もりを作成いたします。",
+      "expectedSlots": ["color", "paper_type"],
+      "expectedComplete": true
+    }
+  ]
+}

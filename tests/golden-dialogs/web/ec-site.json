@@ -1,0 +1,46 @@
+{
+  "id": "web-ec-site",
+  "domain": "web",
+  "description": "E-commerce site development",
+  "dialog": [
+    {
+      "role": "user",
+      "content": "ネットショップを始めたいのですが"
+    },
+    {
+      "role": "assistant",
+      "content": "ECサイトの構築ですね。新規で立ち上げをお考えでしょうか？",
+      "expectedDomain": "web",
+      "expectedSlots": []
+    },
+    {
+      "role": "user",
+      "content": "はい、新規です。商品は50点くらいから始めたいです"
+    },
+    {
+      "role": "assistant",
+      "content": "50点程度の商品でスタートですね。決済方法はどのようなものをお考えですか？",
+      "expectedSlots": ["project_type"],
+      "expectedContext": "EC site with 50 products"
+    },
+    {
+      "role": "user",
+      "content": "クレジットカードとコンビニ決済は必須です"
+    },
+    {
+      "role": "assistant",
+      "content": "クレジットカードとコンビニ決済に対応いたします。いつ頃の開店をお考えですか？",
+      "expectedSlots": ["features"]
+    },
+    {
+      "role": "user",
+      "content": "できれば2ヶ月後には開店したいです"
+    },
+    {
+      "role": "assistant",
+      "content": "2ヶ月後の開店を目標に進めさせていただきます。ECサイトの構築費用は50万円〜となります。",
+      "expectedSlots": ["timeline"],
+      "expectedComplete": true
+    }
+  ]
+}

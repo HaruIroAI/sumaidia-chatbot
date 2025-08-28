@@ -1,4 +1,11 @@
 import { extractText } from "./_extractText.js";
+import { IntentClassifier } from "../../src/intent/intent-classifier.mjs";
+import { ConversationRouter } from "../../src/agent/router.mjs";
+import { buildSystemPrompt, buildConversationPrompt } from "../../src/prompt/build-system-prompt.mjs";
+
+// Initialize services
+const classifier = new IntentClassifier();
+const router = new ConversationRouter();
 
 export async function handler(event) {
   const headers = {
@@ -24,8 +31,14 @@ export async function handler(event) {
     const url = new URL(event.rawUrl || event.url || 'http://localhost');
     const rawMode = url.searchParams.get('raw') === '1';
 
+    // Extract session ID from headers or generate one
+    const sessionId = event.headers?.['x-session-id'] || 
+                     event.headers?.['X-Session-Id'] || 
+                     `session-${Date.now()}`;
+
     // Prepare request body
     let requestBody;
+    let finalSystemPrompt = null;
     
     if (rawMode && body.input) {
       // Raw mode: pass input directly
@@ -37,18 +50,81 @@ export async function handler(event) {
         max_output_tokens: Math.max(64, Number(body?.max_output_tokens || 500))
       };
     } else {
-      // Normal mode: process messages
+      // Normal mode: process messages with routing
       const { messages = [] } = body;
-      requestBody = {
-        model: model,
-        input: messages.map(m => ({ 
-          role: m.role, 
-          content: typeof m.content === 'string' 
-            ? [{ type: "input_text", text: m.content }]
-            : m.content
-        })),
-        max_output_tokens: 500
-      };
+      
+      // Get latest user message for intent classification
+      const userMessages = messages.filter(m => m.role === 'user');
+      const latestUserMessage = userMessages[userMessages.length - 1];
+      
+      if (latestUserMessage && latestUserMessage.content) {
+        // Classify intent
+        const intentResult = classifier.classify(latestUserMessage.content);
+        
+        // Route conversation
+        const routingResult = router.route({
+          domain: intentResult.domain,
+          text: latestUserMessage.content,
+          sessionId: sessionId,
+          context: {
+            confidence: intentResult.confidence,
+            scores: intentResult.scores
+          }
+        });
+
+        // Build system prompt
+        finalSystemPrompt = buildSystemPrompt({
+          routingResult: routingResult,
+          userContext: {
+            sessionId: sessionId,
+            timestamp: Date.now(),
+            previousMessages: messages.slice(0, -1)
+          },
+          model: model
+        });
+
+        // Build conversation with routing-aware system prompt
+        const conversationMessages = buildConversationPrompt({
+          systemPrompt: finalSystemPrompt,
+          messages: messages
+        });
+
+        // Add routing metadata to response headers
+        headers['x-domain'] = intentResult.domain;
+        headers['x-confidence'] = intentResult.confidence;
+        
+        if (routingResult.faqAnswer) {
+          headers['x-faq-match'] = 'true';
+        }
+        
+        if (routingResult.missingSlots.length > 0) {
+          headers['x-missing-slots'] = routingResult.missingSlots.map(s => s.key).join(',');
+        }
+
+        // Prepare OpenAI request with routed conversation
+        requestBody = {
+          model: model,
+          input: conversationMessages.map(m => ({ 
+            role: m.role, 
+            content: typeof m.content === 'string' 
+              ? [{ type: "input_text", text: m.content }]
+              : m.content
+          })),
+          max_output_tokens: 500
+        };
+      } else {
+        // Fallback to original behavior if no user message
+        requestBody = {
+          model: model,
+          input: messages.map(m => ({ 
+            role: m.role, 
+            content: typeof m.content === 'string' 
+              ? [{ type: "input_text", text: m.content }]
+              : m.content
+          })),
+          max_output_tokens: 500
+        };
+      }
     }
 
     // OpenAI Responses APIを呼び出し
@@ -151,6 +227,9 @@ export async function handler(event) {
     if (emotionId) {
       responseHeaders["x-emo"] = emotionId;
     }
+    
+    // Add session ID to response for client tracking
+    responseHeaders["x-session-id"] = sessionId;
 
     return {
       statusCode: 200,
@@ -159,6 +238,13 @@ export async function handler(event) {
     };
 
   } catch (err) {
+    // Clean up old sessions periodically
+    try {
+      router.clearOldSessions();
+    } catch (cleanupErr) {
+      console.error('Session cleanup error:', cleanupErr);
+    }
+
     return {
       statusCode: 500,
       headers: { ...headers, "x-model": process.env.OPENAI_MODEL || "gpt-5-mini" },

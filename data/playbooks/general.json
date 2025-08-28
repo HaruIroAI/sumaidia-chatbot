@@ -1,0 +1,23 @@
+{
+  "domain": "general",
+  "displayName": "一般問い合わせ",
+  "slots": {
+    "inquiry_type": {
+      "name": "お問い合わせ内容",
+      "question": "どのようなご用件でしょうか？",
+      "required": true,
+      "examples": ["見積もり", "相談", "資料請求", "その他"]
+    },
+    "contact_info": {
+      "name": "連絡先",
+      "question": "ご連絡先を教えていただけますか？",
+      "required": false,
+      "examples": ["メールアドレス", "電話番号"]
+    }
+  },
+  "responses": {
+    "greeting": "お問い合わせありがとうございます。どのようなご用件でしょうか？",
+    "confirmation": "承知いたしました。担当者より改めてご連絡させていただきます。",
+    "missing_slots": "詳しくお伺いするため、以下について教えていただけますか？"
+  }
+}
