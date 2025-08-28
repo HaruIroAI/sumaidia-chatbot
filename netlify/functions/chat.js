@@ -53,33 +53,58 @@ async function withRetry(fn, { tries = 3, base = 250 } = {}) {
 }
 
 export async function handler(event) {
+  // Extract common variables upfront
+  const apiKey = process.env.OPENAI_API_KEY;
+  const model = process.env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07';
+  const sessionId = event.headers?.['x-session-id'] || 
+                   event.headers?.['X-Session-Id'] || 
+                   `session-${Date.now()}`;
+  
+  // Parse URL for modes
+  const url = new URL(event.rawUrl || event.url || 'http://localhost');
+  const isRaw = url.searchParams.get('raw') === '1';
+  const bypass = url.searchParams.get('bypass') === '1';
+  const debug = url.searchParams.get('debug') === '1';
+  
+  // Initialize common headers with x-domain always set
+  const headers = new Headers({
+    'content-type': 'application/json',
+    'access-control-allow-origin': '*',
+    'x-model': model,
+    'x-session-id': sessionId,
+    'x-domain': 'general',  // Default domain
+    'x-backend': 'openai',
+    'x-deploy-id': process.env.DEPLOY_ID || '',
+    'x-commit': process.env.COMMIT_REF || ''
+  });
+
   try {
     const body = parseJson(event.body);
-    const apiKey = process.env.OPENAI_API_KEY;
-    const model = process.env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07';
     
-    // Parse URL for raw mode detection
-    const url = new URL(event.rawUrl || event.url || 'http://localhost');
-    const isRaw = url.searchParams.get('raw') === '1';
-    
-    // Extract session ID
-    const sessionId = event.headers?.['x-session-id'] || 
-                     event.headers?.['X-Session-Id'] || 
-                     `session-${Date.now()}`;
-
     // Initialize domain
-    let domain = 'unknown';
+    let domain = 'general';
+    let systemPrompt = '';
+    let userText = '';
     
+    // Handle bypass mode (skip router)
+    if (bypass) {
+      headers.set('x-domain', 'bypass');
+      headers.set('x-backend', 'openai-bypass');
+      // Just convert messages to Responses API format
+      // Will use the input directly without routing
+    } 
     // Process routing and FAQ check for normal mode
-    if (!isRaw && body.messages) {
+    else if (!isRaw && body.messages) {
       const messages = body.messages || [];
       const userMessages = messages.filter(m => m.role === 'user');
       const latestUserMessage = userMessages[userMessages.length - 1];
+      userText = latestUserMessage?.content || '';
       
       if (latestUserMessage && latestUserMessage.content) {
         // Classify intent
         const intentResult = classifier.classify(latestUserMessage.content);
         domain = intentResult.domain;
+        headers.set('x-domain', domain);  // Update domain in headers
         
         // Route conversation
         const routingResult = router.route({
@@ -94,20 +119,11 @@ export async function handler(event) {
 
         // Check for FAQ match first (priority response)
         if (routingResult.faqAnswer && routingResult.faqAnswer.score >= 0.7) {
-          // Set headers for FAQ response
-          const headers = new Headers({
-            'content-type': 'application/json',
-            'access-control-allow-origin': '*',
-            'x-model': model,
-            'x-session-id': sessionId,
-            'x-domain': domain,
-            'x-backend': 'faq',
-            'x-faq-match': 'true',
-            'x-faq-score': String(routingResult.faqAnswer.score || 1.0),
-            'x-faq-type': routingResult.faqAnswer.matchType || 'partial',
-            'x-deploy-id': process.env.DEPLOY_ID || '',
-            'x-commit': process.env.COMMIT_REF || ''
-          });
+          // Update headers for FAQ response
+          headers.set('x-backend', 'faq');
+          headers.set('x-faq-match', 'true');
+          headers.set('x-faq-score', String(routingResult.faqAnswer.score || 1.0));
+          headers.set('x-faq-type', routingResult.faqAnswer.matchType || 'partial');
           
           // Return FAQ answer directly
           return {
@@ -135,7 +151,7 @@ export async function handler(event) {
         const sessionState = router.getSession(sessionId, domain);
         
         // Build system prompt
-        const systemPrompt = buildSystemPrompt({
+        systemPrompt = buildSystemPrompt({
           domain: domain,
           playbook: routingResult.playbookData,
           missingSlots: routingResult.missingSlots,
@@ -152,44 +168,45 @@ export async function handler(event) {
           },
           model: model
         });
-
-        // Build conversation with routing-aware system prompt
-        const conversationMessages = buildConversationPrompt({
-          systemPrompt: systemPrompt,
-          messages: messages
-        });
-
-        // Replace original messages with routed conversation
-        body.messages = conversationMessages;
       }
     }
 
     // 1) Determine input based on mode
-    const input = isRaw
-      ? body.input
-      : toResponsesInputFromMessages(body.messages || []);
+    let input;
+    
+    if (isRaw) {
+      // Raw mode: use input directly
+      input = body.input;
+    } else if (bypass) {
+      // Bypass mode: convert messages without router
+      input = toResponsesInputFromMessages(body.messages || []);
+    } else {
+      // Normal mode: use system prompt from router
+      const messages = body.messages || [];
+      const userMessages = messages.filter(m => m.role === 'user');
+      const lastUserMsg = userMessages[userMessages.length - 1];
+      
+      input = [
+        {
+          role: 'system',
+          content: [{ type: 'input_text', text: systemPrompt || 'You are a helpful assistant.' }]
+        },
+        {
+          role: 'user',
+          content: [{ type: 'input_text', text: userText || lastUserMsg?.content || '' }]
+        }
+      ];
+    }
 
-    // 2) Create unified OpenAI payload
+    // 2) Create unified OpenAI payload (Responses API)
     const payload = {
       model: model,
       input: input,
       text: { format: { type: 'text' }, verbosity: 'low' },
       reasoning: { effort: 'low' },
       temperature: 0.3,
-      max_output_tokens: Math.max(256, Number(body?.max_output_tokens || 512))
+      max_output_tokens: Math.max(256, Number(body?.max_output_tokens || 500))
     };
-
-    // 3) Set up headers early (used in all return paths)
-    const headers = new Headers({
-      'content-type': 'application/json',
-      'access-control-allow-origin': '*',
-      'x-model': payload.model,
-      'x-session-id': sessionId,
-      'x-domain': domain,
-      'x-backend': 'openai',
-      'x-deploy-id': process.env.DEPLOY_ID || '',
-      'x-commit': process.env.COMMIT_REF || ''
-    });
 
     // Check for API key
     if (!apiKey) {
@@ -256,16 +273,44 @@ export async function handler(event) {
 
     // Handle empty output
     if (!text) {
+      headers.set('x-error', 'empty_output');
       return {
         statusCode: 502,
         headers: Object.fromEntries(headers),
         body: JSON.stringify({
           error: 'empty_output',
-          debug: { 
-            status: data?.status, 
-            incomplete: data?.incomplete_details || null,
-            model: model,
-            domain: domain
+          hints: { 
+            domain: headers.get('x-domain'),
+            prompt_len: JSON.stringify(payload.input).length,
+            usage: data?.usage || null,
+            status: data?.status,
+            incomplete: data?.incomplete_details || null
+          }
+        })
+      };
+    }
+    
+    // Debug mode: return diagnostic info
+    if (debug) {
+      return {
+        statusCode: 200,
+        headers: Object.fromEntries(headers),
+        body: JSON.stringify({
+          ok: true,
+          payload: {
+            model: payload.model,
+            input_type: Array.isArray(payload.input) ? 'array' : typeof payload.input,
+            max_output_tokens: payload.max_output_tokens
+          },
+          openai: {
+            status: data?.status || 'unknown',
+            incomplete_details: data?.incomplete_details || null,
+            usage: data?.usage || null,
+            first_item_type: data?.output?.item?.[0]?.type || data?.choices?.[0]?.message ? 'message' : 'unknown'
+          },
+          response: {
+            text: text,
+            domain: headers.get('x-domain')
           }
         })
       };
@@ -305,21 +350,13 @@ export async function handler(event) {
       console.error('Session cleanup error:', cleanupErr);
     }
 
-    // Return error with consistent headers
-    const errorHeaders = new Headers({
-      'content-type': 'application/json',
-      'access-control-allow-origin': '*',
-      'x-model': process.env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07',
-      'x-session-id': event.headers?.['x-session-id'] || '',
-      'x-domain': 'error',
-      'x-backend': 'openai',
-      'x-deploy-id': process.env.DEPLOY_ID || '',
-      'x-commit': process.env.COMMIT_REF || ''
-    });
+    // Update headers for error response
+    headers.set('x-domain', 'error');
+    headers.set('x-error', 'internal_error');
 
     return {
       statusCode: 500,
-      headers: Object.fromEntries(errorHeaders),
+      headers: Object.fromEntries(headers),
       body: JSON.stringify({ 
         error: 'Internal server error', 
         message: String(err?.message || err) 
