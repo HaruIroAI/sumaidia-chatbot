@@ -8,21 +8,34 @@ const classifier = new IntentClassifier();
 const router = new ConversationRouter();
 
 export async function handler(event) {
-  const headers = {
-    "content-type": "application/json",
-    "access-control-allow-origin": "*",
-    "x-backend": "openai",
-  };
-
   try {
     const body = JSON.parse(event.body || "{}");
     const apiKey = process.env.OPENAI_API_KEY;
-    const model = process.env.OPENAI_MODEL || "gpt-5-mini";
+    const model = process.env.OPENAI_MODEL || "gpt-5-mini-2025-08-07";
+    
+    // Extract session ID from headers or generate one
+    const sessionId = event.headers?.['x-session-id'] || 
+                     event.headers?.['X-Session-Id'] || 
+                     `session-${Date.now()}`;
+
+    // Initialize domain tracking
+    let domain = 'general';
+    let intentResult = null;
+    
+    // Early header setup - ensure x-domain is always present
+    const responseHeaders = new Headers({
+      "content-type": "application/json",
+      "access-control-allow-origin": "*",
+      "x-backend": "openai",
+      "x-model": model,
+      "x-session-id": sessionId,
+      "x-domain": domain  // Will be updated after classification
+    });
     
     if (!apiKey) {
       return { 
         statusCode: 500, 
-        headers, 
+        headers: Object.fromEntries(responseHeaders),
         body: JSON.stringify({ error: "Missing OPENAI_API_KEY" }) 
       };
     }
@@ -31,23 +44,19 @@ export async function handler(event) {
     const url = new URL(event.rawUrl || event.url || 'http://localhost');
     const rawMode = url.searchParams.get('raw') === '1';
 
-    // Extract session ID from headers or generate one
-    const sessionId = event.headers?.['x-session-id'] || 
-                     event.headers?.['X-Session-Id'] || 
-                     `session-${Date.now()}`;
-
-    // Prepare request body
-    let requestBody;
+    // Prepare request body with unified format
+    let requestPayload;
     let finalSystemPrompt = null;
     
     if (rawMode && body.input) {
-      // Raw mode: pass input directly
-      requestBody = {
+      // Raw mode: pass input directly with consistent format
+      requestPayload = {
         model: model,
         input: body.input,
         text: { format: { type: 'text' }, verbosity: 'low' },
-        reasoning: { effort: "low" },
-        max_output_tokens: Math.max(64, Number(body?.max_output_tokens || 500))
+        reasoning: { effort: 'low' },
+        temperature: 0.3,
+        max_output_tokens: Number(body?.max_output_tokens ?? 512)
       };
     } else {
       // Normal mode: process messages with routing
@@ -59,11 +68,16 @@ export async function handler(event) {
       
       if (latestUserMessage && latestUserMessage.content) {
         // Classify intent
-        const intentResult = classifier.classify(latestUserMessage.content);
+        intentResult = classifier.classify(latestUserMessage.content);
+        domain = intentResult.domain;
+        
+        // Update domain header
+        responseHeaders.set('x-domain', domain);
+        responseHeaders.set('x-confidence', intentResult.confidence);
         
         // Route conversation
         const routingResult = router.route({
-          domain: intentResult.domain,
+          domain: domain,
           text: latestUserMessage.content,
           sessionId: sessionId,
           context: {
@@ -73,11 +87,11 @@ export async function handler(event) {
         });
 
         // Get session state for filled slots
-        const sessionState = router.getSession(sessionId, intentResult.domain);
+        const sessionState = router.getSession(sessionId, domain);
         
         // Build system prompt with all necessary context
         finalSystemPrompt = buildSystemPrompt({
-          domain: intentResult.domain,
+          domain: domain,
           playbook: routingResult.playbookData,
           missingSlots: routingResult.missingSlots,
           styleHints: {
@@ -101,19 +115,16 @@ export async function handler(event) {
         });
 
         // Add routing metadata to response headers
-        headers['x-domain'] = intentResult.domain;
-        headers['x-confidence'] = intentResult.confidence;
-        
         if (routingResult.faqAnswer) {
-          headers['x-faq-match'] = 'true';
+          responseHeaders.set('x-faq-match', 'true');
         }
         
         if (routingResult.missingSlots.length > 0) {
-          headers['x-missing-slots'] = routingResult.missingSlots.map(s => s.key).join(',');
+          responseHeaders.set('x-missing-slots', routingResult.missingSlots.map(s => s.key).join(','));
         }
 
-        // Prepare OpenAI request with routed conversation
-        requestBody = {
+        // Prepare OpenAI request with unified format
+        requestPayload = {
           model: model,
           input: conversationMessages.map(m => ({ 
             role: m.role, 
@@ -121,11 +132,16 @@ export async function handler(event) {
               ? [{ type: "input_text", text: m.content }]
               : m.content
           })),
-          max_output_tokens: 500
+          text: { format: { type: 'text' }, verbosity: 'low' },
+          reasoning: { effort: 'low' },
+          temperature: 0.3,
+          max_output_tokens: Number(body?.max_output_tokens ?? 512)
         };
       } else {
-        // Fallback to original behavior if no user message
-        requestBody = {
+        // Fallback with default domain if no user message
+        responseHeaders.set('x-domain', 'general');
+        
+        requestPayload = {
           model: model,
           input: messages.map(m => ({ 
             role: m.role, 
@@ -133,83 +149,87 @@ export async function handler(event) {
               ? [{ type: "input_text", text: m.content }]
               : m.content
           })),
-          max_output_tokens: 500
+          text: { format: { type: 'text' }, verbosity: 'low' },
+          reasoning: { effort: 'low' },
+          temperature: 0.3,
+          max_output_tokens: Number(body?.max_output_tokens ?? 512)
         };
       }
     }
 
-    // OpenAI Responses APIを呼び出し
+    // OpenAI Responses API call with unified format
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "content-type": "application/json",
         "authorization": `Bearer ${apiKey}`
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestPayload)
     });
 
     const data = await response.json();
 
-    // エラー時はOpenAIのstatusをそのまま返す
+    // Handle OpenAI errors
     if (!response.ok) {
       return {
         statusCode: response.status,
-        headers: { ...headers, "x-model": data.model || model },
-        body: JSON.stringify({ error: "OpenAI error", ...data })
+        headers: Object.fromEntries(responseHeaders),
+        body: JSON.stringify({ 
+          error: "OpenAI error", 
+          ...data 
+        })
       };
     }
 
-    // レスポンスからテキストを抽出（共通ヘルパーを使用）
+    // Extract text using common helper
     let text = extractText(data);
 
-    // Raw mode retry logic
-    if (rawMode && !text) {
-      // Retry with increased tokens and forced text output
-      const retryPayload = {
-        ...requestBody,
-        max_output_tokens: 256,
-        reasoning: { effort: 'low' },
-        text: { format: { type: 'text' }, verbosity: 'low' }
-      };
-      
-      const retryResponse = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "authorization": `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(retryPayload)
-      });
-      
-      if (retryResponse.ok) {
-        const retryData = await retryResponse.json();
-        text = extractText(retryData);
-      }
-    }
-
-    // Fallback for raw mode
-    if (rawMode && !text) {
-      text = 'pong';  // Default fallback for ping-pong test
-    }
-
-    // ガード: output抽出失敗時の明示メッセージ（通常モードのみ）
-    if (!rawMode && !text) {
-      const responseBody = {
-        choices: [{
-          message: {
-            role: "assistant",
-            content: "暫定エラー: 応答テキストが取得できませんでした"
+    // Handle empty output with 502 error for better debugging
+    if (!text) {
+      // Raw mode retry logic
+      if (rawMode) {
+        // Retry with increased tokens
+        const retryPayload = {
+          ...requestPayload,
+          max_output_tokens: Math.min(1024, requestPayload.max_output_tokens * 2),
+          reasoning: { effort: 'medium' },
+          text: { format: { type: 'text' }, verbosity: 'medium' }
+        };
+        
+        const retryResponse = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "authorization": `Bearer ${apiKey}`
           },
-          finish_reason: "stop"
-        }],
-        usage: data.usage || {}
-      };
-      
-      return {
-        statusCode: 200,  // 500にはしない
-        headers: { ...headers, "x-model": data.model || model },
-        body: JSON.stringify(responseBody)
-      };
+          body: JSON.stringify(retryPayload)
+        });
+        
+        if (retryResponse.ok) {
+          const retryData = await retryResponse.json();
+          text = extractText(retryData);
+        }
+        
+        // Fallback for raw mode ping test
+        if (!text) {
+          text = 'pong';
+        }
+      } else {
+        // Return 502 for empty output in normal mode
+        return {
+          statusCode: 502,
+          headers: Object.fromEntries(responseHeaders),
+          body: JSON.stringify({
+            error: 'empty_output',
+            debug: { 
+              status: data?.status, 
+              incomplete: data?.incomplete_details || null,
+              model: model,
+              domain: domain
+            }
+          })
+        };
+      }
     }
 
     // Extract emotion tag if present
@@ -220,31 +240,24 @@ export async function handler(event) {
     if (emoMatch) {
       emotionId = emoMatch[1];
       cleanText = text.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '');
+      responseHeaders.set("x-emo", emotionId);
     }
     
-    // 正常な返却形式
+    // Return UI-compatible format
     const responseBody = {
       choices: [{
         message: {
           role: "assistant",
-          content: cleanText  // Return clean text without emotion tag
+          content: cleanText
         },
         finish_reason: "stop"
       }],
-      usage: data.usage || {}
+      usage: data?.usage || null
     };
-
-    const responseHeaders = { ...headers, "x-model": data.model || model };
-    if (emotionId) {
-      responseHeaders["x-emo"] = emotionId;
-    }
-    
-    // Add session ID to response for client tracking
-    responseHeaders["x-session-id"] = sessionId;
 
     return {
       statusCode: 200,
-      headers: responseHeaders,
+      headers: Object.fromEntries(responseHeaders),
       body: JSON.stringify(responseBody)
     };
 
@@ -256,9 +269,18 @@ export async function handler(event) {
       console.error('Session cleanup error:', cleanupErr);
     }
 
+    // Return error with domain header
+    const errorHeaders = new Headers({
+      "content-type": "application/json",
+      "access-control-allow-origin": "*",
+      "x-backend": "openai",
+      "x-model": process.env.OPENAI_MODEL || "gpt-5-mini-2025-08-07",
+      "x-domain": "error"
+    });
+
     return {
       statusCode: 500,
-      headers: { ...headers, "x-model": process.env.OPENAI_MODEL || "gpt-5-mini" },
+      headers: Object.fromEntries(errorHeaders),
       body: JSON.stringify({ 
         error: "Internal server error", 
         message: String(err?.message || err) 
