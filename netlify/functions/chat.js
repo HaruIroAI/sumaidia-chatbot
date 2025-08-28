@@ -1,11 +1,25 @@
-import { extractText } from "./_extractText.js";
-import { IntentClassifier } from "../../src/intent/intent-classifier.mjs";
-import { ConversationRouter } from "../../src/agent/router.mjs";
-import { buildSystemPrompt, buildConversationPrompt } from "../../src/prompt/build-system-prompt.mjs";
+const { extractText } = require("./_extractText.js");
 
-// Initialize services
-const classifier = new IntentClassifier();
-const router = new ConversationRouter();
+/**
+ * Dynamic import helpers for ESM modules
+ */
+async function importIntentClassifier() {
+  const m = await import('../../src/intent/intent-classifier.mjs');
+  return m.IntentClassifier || m.default;
+}
+
+async function importRouter() {
+  const m = await import('../../src/agent/router.mjs');
+  return m.ConversationRouter || m.default;
+}
+
+async function importPromptBuilder() {
+  const m = await import('../../src/prompt/build-system-prompt.mjs');
+  return {
+    buildSystemPrompt: m.buildSystemPrompt,
+    buildConversationPrompt: m.buildConversationPrompt
+  };
+}
 
 /**
  * Convert messages array to Responses API input format
@@ -52,7 +66,7 @@ async function withRetry(fn, { tries = 3, base = 250 } = {}) {
   throw lastErr;
 }
 
-export async function handler(event) {
+exports.handler = async function handler(event, context) {
   // Extract common variables upfront
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07';
@@ -85,16 +99,52 @@ export async function handler(event) {
     let domain = 'general';
     let systemPrompt = '';
     let userText = '';
-    
-    // Handle bypass mode (skip router)
+    let input;
+
+    // Handle bypass mode (skip router, no ESM loading)
     if (bypass) {
       headers.set('x-domain', 'bypass');
       headers.set('x-backend', 'openai-bypass');
+      
       // Just convert messages to Responses API format
-      // Will use the input directly without routing
+      input = toResponsesInputFromMessages(body.messages || []);
     } 
-    // Process routing and FAQ check for normal mode
-    else if (!isRaw && body.messages) {
+    // Handle raw mode (no routing, direct input)
+    else if (isRaw) {
+      headers.set('x-domain', 'raw');
+      input = body.input;
+    }
+    // Normal mode - load ESM modules and process routing
+    else if (body.messages) {
+      // Load ESM modules only when needed
+      let IntentClassifier, ConversationRouter, promptBuilders;
+      
+      try {
+        // Dynamic imports for ESM modules
+        IntentClassifier = await importIntentClassifier();
+        ConversationRouter = await importRouter();
+        promptBuilders = await importPromptBuilder();
+      } catch (importError) {
+        // ESM import failed
+        headers.set('x-error', 'esm_import_failed');
+        return {
+          statusCode: 502,
+          headers: Object.fromEntries(headers),
+          body: JSON.stringify({
+            error: 'esm_import_failed',
+            message: String(importError?.message || importError),
+            details: {
+              module: importError?.url || 'unknown',
+              type: 'ESM import failure'
+            }
+          })
+        };
+      }
+
+      // Initialize services
+      const classifier = new IntentClassifier();
+      const router = new ConversationRouter();
+      
       const messages = body.messages || [];
       const userMessages = messages.filter(m => m.role === 'user');
       const latestUserMessage = userMessages[userMessages.length - 1];
@@ -151,7 +201,7 @@ export async function handler(event) {
         const sessionState = router.getSession(sessionId, domain);
         
         // Build system prompt
-        systemPrompt = buildSystemPrompt({
+        systemPrompt = promptBuilders.buildSystemPrompt({
           domain: domain,
           playbook: routingResult.playbookData,
           missingSlots: routingResult.missingSlots,
@@ -168,37 +218,35 @@ export async function handler(event) {
           },
           model: model
         });
+
+        // Build input for Responses API
+        input = [
+          {
+            role: 'system',
+            content: [{ type: 'input_text', text: systemPrompt || 'You are a helpful assistant.' }]
+          },
+          {
+            role: 'user',
+            content: [{ type: 'input_text', text: userText || '' }]
+          }
+        ];
+      } else {
+        // No user message, use default
+        input = toResponsesInputFromMessages(messages);
       }
-    }
 
-    // 1) Determine input based on mode
-    let input;
-    
-    if (isRaw) {
-      // Raw mode: use input directly
-      input = body.input;
-    } else if (bypass) {
-      // Bypass mode: convert messages without router
-      input = toResponsesInputFromMessages(body.messages || []);
+      // Clean up old sessions periodically
+      try {
+        router.clearOldSessions();
+      } catch (cleanupErr) {
+        console.error('Session cleanup error:', cleanupErr);
+      }
     } else {
-      // Normal mode: use system prompt from router
-      const messages = body.messages || [];
-      const userMessages = messages.filter(m => m.role === 'user');
-      const lastUserMsg = userMessages[userMessages.length - 1];
-      
-      input = [
-        {
-          role: 'system',
-          content: [{ type: 'input_text', text: systemPrompt || 'You are a helpful assistant.' }]
-        },
-        {
-          role: 'user',
-          content: [{ type: 'input_text', text: userText || lastUserMsg?.content || '' }]
-        }
-      ];
+      // No messages provided
+      input = [];
     }
 
-    // 2) Create unified OpenAI payload (Responses API)
+    // Create unified OpenAI payload (Responses API)
     const payload = {
       model: model,
       input: input,
@@ -210,6 +258,7 @@ export async function handler(event) {
 
     // Check for API key
     if (!apiKey) {
+      headers.set('x-error', 'missing_api_key');
       return { 
         statusCode: 500, 
         headers: Object.fromEntries(headers),
@@ -217,7 +266,7 @@ export async function handler(event) {
       };
     }
 
-    // 4) Call OpenAI Responses API with retry
+    // Call OpenAI Responses API with retry
     let response, data;
     try {
       const result = await withRetry(async () => {
@@ -246,6 +295,7 @@ export async function handler(event) {
       data = result.data;
     } catch (retryError) {
       // After all retries failed
+      headers.set('x-error', 'openai_unavailable');
       return {
         statusCode: 503,
         headers: Object.fromEntries(headers),
@@ -258,6 +308,7 @@ export async function handler(event) {
 
     // Handle non-5xx OpenAI errors
     if (!response.ok) {
+      headers.set('x-error', `openai_${response.status}`);
       return {
         statusCode: response.status,
         headers: Object.fromEntries(headers),
@@ -268,7 +319,7 @@ export async function handler(event) {
       };
     }
 
-    // 5) Extract text
+    // Extract text
     const text = extractText(data);
 
     // Handle empty output
@@ -326,7 +377,7 @@ export async function handler(event) {
       headers.set('x-emo', emotionId);
     }
     
-    // 6) Return UI-compatible format
+    // Return UI-compatible format
     return {
       statusCode: 200,
       headers: Object.fromEntries(headers),
@@ -343,13 +394,6 @@ export async function handler(event) {
     };
 
   } catch (err) {
-    // Clean up old sessions periodically
-    try {
-      router.clearOldSessions();
-    } catch (cleanupErr) {
-      console.error('Session cleanup error:', cleanupErr);
-    }
-
     // Update headers for error response
     headers.set('x-domain', 'error');
     headers.set('x-error', 'internal_error');
@@ -363,4 +407,4 @@ export async function handler(event) {
       })
     };
   }
-}
+};
