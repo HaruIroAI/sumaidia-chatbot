@@ -328,14 +328,21 @@ exports.handler = async function handler(event, context) {
 
     // === OPENAI API CALL (common path) ===
     
-    // Create unified OpenAI payload (Responses API) - sanitized
+    // Ensure input is properly formatted (use body.input if available, else convert messages)
+    const finalInput = body?.input ?? (input || toResponsesInputFromMessages(body?.messages || []));
+    
+    // Create unified OpenAI payload (Responses API) - ALWAYS sanitized
     const payload = toResponsesPayload({
-      input: input,
+      input: finalInput,
       max_output_tokens: body?.max_output_tokens
     });
     
-    // Debug logging if requested
+    // 🔒 From here on, payload has NO banned keys
+    
+    // Debug mode: show sanitized payload keys
     if (debug) {
+      headers.set('x-sanitized', '1');
+      console.log('OpenAI Payload Keys:', Object.keys(payload));
       console.log('OpenAI Payload (sanitized):', JSON.stringify(payload, null, 2));
     }
 
@@ -436,6 +443,7 @@ exports.handler = async function handler(event, context) {
             input_type: Array.isArray(payload.input) ? 'array' : typeof payload.input,
             max_output_tokens: payload.max_output_tokens
           },
+          payload_keys: Object.keys(payload),  // Show what keys are in sanitized payload
           openai: {
             status: data?.status || 'unknown',
             incomplete_details: data?.incomplete_details || null,
@@ -444,7 +452,8 @@ exports.handler = async function handler(event, context) {
           },
           response: {
             text: text,
-            domain: headers.get('x-domain')
+            domain: headers.get('x-domain'),
+            sanitized: headers.get('x-sanitized') === '1'
           }
         })
       };
