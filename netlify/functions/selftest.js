@@ -1,9 +1,9 @@
-export async function handler(event) {
+exports.handler = async function handler(event) {
   try {
-    // いま実行中のオリジン（Deploy Preview / 本番どちらでも OK）
-    const origin = new URL(event.rawUrl).origin;
+    // Get the origin from the current request
+    const origin = new URL(event.rawUrl || event.url || 'http://localhost').origin;
 
-    // /chat?raw=1 を同一オリジンで叩く（本番と同一パイプライン）
+    // Call /chat?raw=1 with a simple ping-pong test
     const payload = {
       input: [
         { role: 'system', content: [{ type: 'input_text', text: '「pong」と1語だけ返す' }] },
@@ -31,10 +31,18 @@ export async function handler(event) {
       model
     };
 
-    // デバッグ時は raw を同梱
-    const u = new URL(event.rawUrl);
+    // Include debug info if requested
+    const u = new URL(event.rawUrl || event.url || 'http://localhost');
     if (u.searchParams.get('debug') === '1') {
-      body.raw = data;
+      body.debug = {
+        raw_response: data,
+        status: res.status,
+        headers: {
+          'x-domain': res.headers.get('x-domain'),
+          'x-model': res.headers.get('x-model'),
+          'x-commit': res.headers.get('x-commit')
+        }
+      };
     }
 
     return {
@@ -46,7 +54,12 @@ export async function handler(event) {
     return {
       statusCode: 500,
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ok: false, error: String(err) })
+      body: JSON.stringify({ 
+        ok: false, 
+        error: String(err?.message || err),
+        expected: 'pong',
+        sample: null
+      })
     };
   }
-}
+};

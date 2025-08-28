@@ -74,7 +74,7 @@ async function withRetry(fn, { tries = 3, base = 250 } = {}) {
 exports.handler = async function handler(event, context) {
   // Extract common variables upfront
   const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07';
+  const model = process.env.OPENAI_MODEL || 'gpt-5-mini';
   const sessionId = event.headers?.['x-session-id'] || 
                    event.headers?.['X-Session-Id'] || 
                    `session-${Date.now()}`;
@@ -86,6 +86,11 @@ exports.handler = async function handler(event, context) {
   const debug = url.searchParams.get('debug') === '1';
   const selftest = url.pathname?.includes('selftest');
   
+  // Get commit SHA (Netlify provides COMMIT_REF)
+  const commitSHA = process.env.COMMIT_REF ? 
+    process.env.COMMIT_REF.substring(0, 7) : 
+    'unknown';
+  
   // Initialize common headers with x-domain always set
   const headers = new Headers({
     'content-type': 'application/json',
@@ -95,7 +100,7 @@ exports.handler = async function handler(event, context) {
     'x-domain': 'general',  // Default domain
     'x-backend': 'openai',
     'x-deploy-id': process.env.DEPLOY_ID || '',
-    'x-commit': process.env.COMMIT_REF || ''
+    'x-commit': commitSHA
   });
 
   try {
@@ -278,12 +283,12 @@ exports.handler = async function handler(event, context) {
     // === OPENAI API CALL (common path) ===
     
     // Create unified OpenAI payload (Responses API)
+    // IMPORTANT: No temperature, top_p, frequency_penalty, presence_penalty allowed
     const payload = {
       model: model,
       input: input,
-      text: { format: { type: 'text' }, verbosity: 'low' },
+      text: { format: { type: 'text' } },
       reasoning: { effort: 'low' },
-      temperature: 0.3,
       max_output_tokens: Math.max(256, Number(body?.max_output_tokens || 500))
     };
 
