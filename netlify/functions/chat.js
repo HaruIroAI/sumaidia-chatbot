@@ -1,24 +1,29 @@
 const { extractText } = require("./_extractText.js");
 
 /**
- * Dynamic import helpers for ESM modules
+ * Cached ESM module loaders with lazy loading
  */
-async function importIntentClassifier() {
-  const m = await import('../../src/intent/intent-classifier.mjs');
-  return m.IntentClassifier || m.default;
+let _intentMod, _routerMod, _promptMod;
+
+async function loadIntent() {
+  if (!_intentMod) {
+    _intentMod = await import('../../src/intent/intent-classifier.mjs');
+  }
+  return _intentMod;
 }
 
-async function importRouter() {
-  const m = await import('../../src/agent/router.mjs');
-  return m.ConversationRouter || m.default;
+async function loadRouter() {
+  if (!_routerMod) {
+    _routerMod = await import('../../src/agent/router.mjs');
+  }
+  return _routerMod;
 }
 
-async function importPromptBuilder() {
-  const m = await import('../../src/prompt/build-system-prompt.mjs');
-  return {
-    buildSystemPrompt: m.buildSystemPrompt,
-    buildConversationPrompt: m.buildConversationPrompt
-  };
+async function loadPrompt() {
+  if (!_promptMod) {
+    _promptMod = await import('../../src/prompt/build-system-prompt.mjs');
+  }
+  return _promptMod;
 }
 
 /**
@@ -79,6 +84,7 @@ exports.handler = async function handler(event, context) {
   const isRaw = url.searchParams.get('raw') === '1';
   const bypass = url.searchParams.get('bypass') === '1';
   const debug = url.searchParams.get('debug') === '1';
+  const selftest = url.pathname?.includes('selftest');
   
   // Initialize common headers with x-domain always set
   const headers = new Headers({
@@ -95,11 +101,27 @@ exports.handler = async function handler(event, context) {
   try {
     const body = parseJson(event.body);
     
-    // Initialize domain
+    // Initialize variables
     let domain = 'general';
     let systemPrompt = '';
     let userText = '';
     let input;
+
+    // === EARLY RETURN PATHS (no ESM loading) ===
+    
+    // Handle selftest mode
+    if (selftest) {
+      headers.set('x-domain', 'selftest');
+      return {
+        statusCode: 200,
+        headers: Object.fromEntries(headers),
+        body: JSON.stringify({
+          status: 'ok',
+          mode: 'selftest',
+          timestamp: new Date().toISOString()
+        })
+      };
+    }
 
     // Handle bypass mode (skip router, no ESM loading)
     if (bypass) {
@@ -114,21 +136,28 @@ exports.handler = async function handler(event, context) {
       headers.set('x-domain', 'raw');
       input = body.input;
     }
-    // Normal mode - load ESM modules and process routing
+    // === NORMAL MODE - requires ESM modules ===
     else if (body.messages) {
-      // Load ESM modules only when needed
-      let IntentClassifier, ConversationRouter, promptBuilders;
+      // Load ESM modules only when absolutely needed
+      let IntentClassifier, ConversationRouter, buildSystemPrompt, buildConversationPrompt;
       
       try {
-        // Dynamic imports for ESM modules
-        IntentClassifier = await importIntentClassifier();
-        ConversationRouter = await importRouter();
-        promptBuilders = await importPromptBuilder();
+        // Load all ESM modules with caching
+        const intentMod = await loadIntent();
+        const routerMod = await loadRouter();
+        const promptMod = await loadPrompt();
+        
+        // Extract what we need from modules
+        IntentClassifier = intentMod.IntentClassifier || intentMod.default;
+        ConversationRouter = routerMod.ConversationRouter || routerMod.default;
+        buildSystemPrompt = promptMod.buildSystemPrompt;
+        buildConversationPrompt = promptMod.buildConversationPrompt;
+        
       } catch (importError) {
         // ESM import failed
         headers.set('x-error', 'esm_import_failed');
         return {
-          statusCode: 502,
+          statusCode: 500,
           headers: Object.fromEntries(headers),
           body: JSON.stringify({
             error: 'esm_import_failed',
@@ -141,7 +170,7 @@ exports.handler = async function handler(event, context) {
         };
       }
 
-      // Initialize services
+      // Initialize services with loaded modules
       const classifier = new IntentClassifier();
       const router = new ConversationRouter();
       
@@ -201,7 +230,7 @@ exports.handler = async function handler(event, context) {
         const sessionState = router.getSession(sessionId, domain);
         
         // Build system prompt
-        systemPrompt = promptBuilders.buildSystemPrompt({
+        systemPrompt = buildSystemPrompt({
           domain: domain,
           playbook: routingResult.playbookData,
           missingSlots: routingResult.missingSlots,
@@ -246,6 +275,8 @@ exports.handler = async function handler(event, context) {
       input = [];
     }
 
+    // === OPENAI API CALL (common path) ===
+    
     // Create unified OpenAI payload (Responses API)
     const payload = {
       model: model,
