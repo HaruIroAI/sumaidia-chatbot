@@ -37,6 +37,48 @@ function toResponsesInputFromMessages(messages = []) {
 }
 
 /**
+ * List of banned keys that must never be sent to OpenAI
+ */
+const BANNED_KEYS = [
+  'temperature', 'top_p', 'frequency_penalty', 'presence_penalty',
+  'stop', 'seed', 'response_format' // Also ban old-style params
+];
+
+/**
+ * Sanitize payload by removing all banned keys
+ */
+function sanitizePayload(obj) {
+  const clean = JSON.parse(JSON.stringify(obj || {}));
+  for (const k of BANNED_KEYS) {
+    delete clean[k];
+  }
+  // Also clean nested text object if present
+  if (clean.text && typeof clean.text === 'object') {
+    for (const k of BANNED_KEYS) {
+      delete clean.text[k];
+    }
+  }
+  // Remove response_format completely
+  delete clean.response_format;
+  return clean;
+}
+
+/**
+ * Build minimal Responses API payload - ONLY allowed fields
+ */
+function toResponsesPayload({ input, max_output_tokens }) {
+  const capped = Math.min(512, Number(max_output_tokens || 256));
+  const payload = {
+    model: process.env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07',
+    input: input || [],
+    max_output_tokens: capped,
+    text: { format: { type: 'text' }, verbosity: 'low' },
+    reasoning: { effort: 'low' }
+  };
+  return sanitizePayload(payload);
+}
+
+/**
  * Safe JSON parse helper
  */
 function parseJson(str) {
@@ -277,15 +319,16 @@ exports.handler = async function handler(event, context) {
 
     // === OPENAI API CALL (common path) ===
     
-    // Create unified OpenAI payload (Responses API)
-    const payload = {
-      model: model,
+    // Create unified OpenAI payload (Responses API) - sanitized
+    const payload = toResponsesPayload({
       input: input,
-      text: { format: { type: 'text' }, verbosity: 'low' },
-      reasoning: { effort: 'low' },
-      temperature: 0.3,
-      max_output_tokens: Math.max(256, Number(body?.max_output_tokens || 500))
-    };
+      max_output_tokens: body?.max_output_tokens
+    });
+    
+    // Debug logging if requested
+    if (debug) {
+      console.log('OpenAI Payload (sanitized):', JSON.stringify(payload, null, 2));
+    }
 
     // Check for API key
     if (!apiKey) {
