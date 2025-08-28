@@ -119,29 +119,96 @@ export class ConversationRouter {
   }
 
   /**
-   * Find matching FAQ answer
+   * Find matching FAQ answer with scoring
    */
   findFAQAnswer(domain, text) {
     const domainFAQ = this.faqs[domain];
     if (!domainFAQ || !domainFAQ.faqs) return null;
 
     const normalizedText = text.toLowerCase();
+    let bestMatch = null;
+    let bestScore = 0;
 
     for (const faq of domainFAQ.faqs) {
+      let score = 0;
+      
+      // Check for exact question match (highest priority)
+      if (faq.question && normalizedText === faq.question.toLowerCase()) {
+        return {
+          question: faq.question,
+          answer: faq.answer,
+          matched: true,
+          matchType: 'exact',
+          score: 1.0
+        };
+      }
+      
+      // Calculate keyword matching score
       if (faq.keywords && Array.isArray(faq.keywords)) {
+        let keywordMatches = 0;
+        let totalKeywords = faq.keywords.length;
+        
         for (const keyword of faq.keywords) {
           if (normalizedText.includes(keyword.toLowerCase())) {
-            return {
-              question: faq.question,
-              answer: faq.answer,
-              matched: true
-            };
+            keywordMatches++;
+          }
+        }
+        
+        if (keywordMatches > 0) {
+          // Score based on how many keywords matched
+          score = keywordMatches / totalKeywords;
+          
+          // Boost score if all keywords matched
+          if (keywordMatches === totalKeywords) {
+            score = Math.min(score * 1.2, 0.95);
+          }
+          
+          // Additional boost for question similarity
+          if (faq.question) {
+            const questionSimilarity = this.calculateSimilarity(
+              normalizedText, 
+              faq.question.toLowerCase()
+            );
+            score = score * 0.7 + questionSimilarity * 0.3;
           }
         }
       }
+      
+      // Update best match if this score is better
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = {
+          question: faq.question,
+          answer: faq.answer,
+          matched: true,
+          matchType: 'partial',
+          score: score
+        };
+      }
     }
-
+    
+    // Return match if score meets threshold (0.7)
+    if (bestScore >= 0.7) {
+      return bestMatch;
+    }
+    
     return null;
+  }
+  
+  /**
+   * Calculate simple text similarity (Jaccard coefficient)
+   */
+  calculateSimilarity(text1, text2) {
+    const words1 = new Set(text1.split(/\s+/));
+    const words2 = new Set(text2.split(/\s+/));
+    
+    if (words1.size === 0 && words2.size === 0) return 1;
+    if (words1.size === 0 || words2.size === 0) return 0;
+    
+    const intersection = new Set([...words1].filter(x => words2.has(x)));
+    const union = new Set([...words1, ...words2]);
+    
+    return intersection.size / union.size;
   }
 
   /**

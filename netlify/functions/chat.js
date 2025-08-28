@@ -47,6 +47,7 @@ export async function handler(event) {
     let domain = 'general';
     
     // Process routing for normal mode
+    let faqResponse = null;
     if (!isRaw && body.messages) {
       const messages = body.messages || [];
       const userMessages = messages.filter(m => m.role === 'user');
@@ -68,37 +69,79 @@ export async function handler(event) {
           }
         });
 
-        // Get session state for filled slots
-        const sessionState = router.getSession(sessionId, domain);
-        
-        // Build system prompt with all necessary context
-        const systemPrompt = buildSystemPrompt({
-          domain: domain,
-          playbook: routingResult.playbookData,
-          missingSlots: routingResult.missingSlots,
-          styleHints: {
-            confidence: intentResult.confidence,
-            faqMatched: routingResult.faqAnswer !== null
-          },
-          routingResult: routingResult,
-          userContext: {
-            sessionId: sessionId,
-            timestamp: Date.now(),
-            previousMessages: messages.slice(0, -1),
-            session: sessionState
-          },
-          model: model
-        });
+        // Check for FAQ match first (priority response)
+        if (routingResult.faqAnswer && routingResult.faqAnswer.score >= 0.7) {
+          // Set headers for FAQ response
+          const headers = new Headers({
+            'content-type': 'application/json',
+            'access-control-allow-origin': '*',
+            'x-model': model,
+            'x-session-id': sessionId,
+            'x-domain': domain,
+            'x-backend': 'faq',
+            'x-faq-match': 'true',
+            'x-faq-score': String(routingResult.faqAnswer.score || 1.0),
+            'x-faq-type': routingResult.faqAnswer.matchType || 'partial'
+          });
+          
+          // Return FAQ answer directly without AI generation
+          faqResponse = {
+            statusCode: 200,
+            headers: Object.fromEntries(headers),
+            body: JSON.stringify({
+              choices: [{
+                message: {
+                  role: 'assistant',
+                  content: routingResult.faqAnswer.answer
+                },
+                finish_reason: 'stop'
+              }],
+              usage: {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 0
+              }
+            })
+          };
+        } else {
+          // No FAQ match, proceed with AI generation
+          // Get session state for filled slots
+          const sessionState = router.getSession(sessionId, domain);
+          
+          // Build system prompt with all necessary context
+          const systemPrompt = buildSystemPrompt({
+            domain: domain,
+            playbook: routingResult.playbookData,
+            missingSlots: routingResult.missingSlots,
+            styleHints: {
+              confidence: intentResult.confidence,
+              faqMatched: false
+            },
+            routingResult: routingResult,
+            userContext: {
+              sessionId: sessionId,
+              timestamp: Date.now(),
+              previousMessages: messages.slice(0, -1),
+              session: sessionState
+            },
+            model: model
+          });
 
-        // Build conversation with routing-aware system prompt
-        const conversationMessages = buildConversationPrompt({
-          systemPrompt: systemPrompt,
-          messages: messages
-        });
+          // Build conversation with routing-aware system prompt
+          const conversationMessages = buildConversationPrompt({
+            systemPrompt: systemPrompt,
+            messages: messages
+          });
 
-        // Replace original messages with routed conversation
-        body.messages = conversationMessages;
+          // Replace original messages with routed conversation
+          body.messages = conversationMessages;
+        }
       }
+    }
+    
+    // Return FAQ response immediately if found
+    if (faqResponse) {
+      return faqResponse;
     }
 
     // 1) Determine input based on mode
