@@ -7,73 +7,55 @@ import { buildSystemPrompt, buildConversationPrompt } from "../../src/prompt/bui
 const classifier = new IntentClassifier();
 const router = new ConversationRouter();
 
+/**
+ * Convert messages array to Responses API input format
+ */
+function toResponsesInputFromMessages(messages = []) {
+  return messages.map(m => ({
+    role: m.role,
+    content: [{ type: 'input_text', text: String(m.content ?? '') }]
+  }));
+}
+
+/**
+ * Safe JSON parse helper
+ */
+function parseJson(str) {
+  try {
+    return JSON.parse(str || '{}');
+  } catch {
+    return {};
+  }
+}
+
 export async function handler(event) {
   try {
-    const body = JSON.parse(event.body || "{}");
+    const body = parseJson(event.body);
     const apiKey = process.env.OPENAI_API_KEY;
-    const model = process.env.OPENAI_MODEL || "gpt-5-mini-2025-08-07";
+    const model = process.env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07';
     
     // Extract session ID from headers or generate one
     const sessionId = event.headers?.['x-session-id'] || 
                      event.headers?.['X-Session-Id'] || 
                      `session-${Date.now()}`;
 
-    // Initialize domain tracking
-    let domain = 'general';
-    let intentResult = null;
-    
-    // Early header setup - ensure x-domain is always present
-    const responseHeaders = new Headers({
-      "content-type": "application/json",
-      "access-control-allow-origin": "*",
-      "x-backend": "openai",
-      "x-model": model,
-      "x-session-id": sessionId,
-      "x-domain": domain  // Will be updated after classification
-    });
-    
-    if (!apiKey) {
-      return { 
-        statusCode: 500, 
-        headers: Object.fromEntries(responseHeaders),
-        body: JSON.stringify({ error: "Missing OPENAI_API_KEY" }) 
-      };
-    }
-
     // Check for raw mode
     const url = new URL(event.rawUrl || event.url || 'http://localhost');
-    const rawMode = url.searchParams.get('raw') === '1';
+    const isRaw = url.searchParams.get('raw') === '1';
 
-    // Prepare request body with unified format
-    let requestPayload;
-    let finalSystemPrompt = null;
+    // Initialize domain tracking
+    let domain = 'general';
     
-    if (rawMode && body.input) {
-      // Raw mode: pass input directly with consistent format
-      requestPayload = {
-        model: model,
-        input: body.input,
-        text: { format: { type: 'text' }, verbosity: 'low' },
-        reasoning: { effort: 'low' },
-        temperature: 0.3,
-        max_output_tokens: Number(body?.max_output_tokens ?? 512)
-      };
-    } else {
-      // Normal mode: process messages with routing
-      const { messages = [] } = body;
-      
-      // Get latest user message for intent classification
+    // Process routing for normal mode
+    if (!isRaw && body.messages) {
+      const messages = body.messages || [];
       const userMessages = messages.filter(m => m.role === 'user');
       const latestUserMessage = userMessages[userMessages.length - 1];
       
       if (latestUserMessage && latestUserMessage.content) {
         // Classify intent
-        intentResult = classifier.classify(latestUserMessage.content);
+        const intentResult = classifier.classify(latestUserMessage.content);
         domain = intentResult.domain;
-        
-        // Update domain header
-        responseHeaders.set('x-domain', domain);
-        responseHeaders.set('x-confidence', intentResult.confidence);
         
         // Route conversation
         const routingResult = router.route({
@@ -90,7 +72,7 @@ export async function handler(event) {
         const sessionState = router.getSession(sessionId, domain);
         
         // Build system prompt with all necessary context
-        finalSystemPrompt = buildSystemPrompt({
+        const systemPrompt = buildSystemPrompt({
           domain: domain,
           playbook: routingResult.playbookData,
           missingSlots: routingResult.missingSlots,
@@ -110,61 +92,57 @@ export async function handler(event) {
 
         // Build conversation with routing-aware system prompt
         const conversationMessages = buildConversationPrompt({
-          systemPrompt: finalSystemPrompt,
+          systemPrompt: systemPrompt,
           messages: messages
         });
 
-        // Add routing metadata to response headers
-        if (routingResult.faqAnswer) {
-          responseHeaders.set('x-faq-match', 'true');
-        }
-        
-        if (routingResult.missingSlots.length > 0) {
-          responseHeaders.set('x-missing-slots', routingResult.missingSlots.map(s => s.key).join(','));
-        }
-
-        // Prepare OpenAI request with unified format
-        requestPayload = {
-          model: model,
-          input: conversationMessages.map(m => ({ 
-            role: m.role, 
-            content: typeof m.content === 'string' 
-              ? [{ type: "input_text", text: m.content }]
-              : m.content
-          })),
-          text: { format: { type: 'text' }, verbosity: 'low' },
-          reasoning: { effort: 'low' },
-          temperature: 0.3,
-          max_output_tokens: Number(body?.max_output_tokens ?? 512)
-        };
-      } else {
-        // Fallback with default domain if no user message
-        responseHeaders.set('x-domain', 'general');
-        
-        requestPayload = {
-          model: model,
-          input: messages.map(m => ({ 
-            role: m.role, 
-            content: typeof m.content === 'string' 
-              ? [{ type: "input_text", text: m.content }]
-              : m.content
-          })),
-          text: { format: { type: 'text' }, verbosity: 'low' },
-          reasoning: { effort: 'low' },
-          temperature: 0.3,
-          max_output_tokens: Number(body?.max_output_tokens ?? 512)
-        };
+        // Replace original messages with routed conversation
+        body.messages = conversationMessages;
       }
     }
 
-    // OpenAI Responses API call with unified format
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
+    // 1) Determine input based on mode
+    const input = isRaw
+      ? body.input  // raw mode: pass through as-is
+      : toResponsesInputFromMessages(body.messages || []);  // normal mode: convert messages
+
+    // 2) Create unified OpenAI payload
+    const payload = {
+      model: model,
+      input: input,
+      text: { format: { type: 'text' }, verbosity: 'low' },
+      reasoning: { effort: 'low' },
+      temperature: 0.3,
+      max_output_tokens: Math.max(256, Number(body?.max_output_tokens || 512))
+    };
+
+    // 3) Set up headers early (used in all return paths)
+    const headers = new Headers({
+      'content-type': 'application/json',
+      'access-control-allow-origin': '*',
+      'x-model': payload.model,
+      'x-session-id': sessionId,
+      'x-domain': domain,
+      'x-backend': 'openai'
+    });
+
+    // Check for API key
+    if (!apiKey) {
+      return { 
+        statusCode: 500, 
+        headers: Object.fromEntries(headers),
+        body: JSON.stringify({ error: 'Missing OPENAI_API_KEY' }) 
+      };
+    }
+
+    // 4) Call OpenAI Responses API
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
       headers: {
-        "content-type": "application/json",
-        "authorization": `Bearer ${apiKey}`
+        'content-type': 'application/json',
+        'authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify(requestPayload)
+      body: JSON.stringify(payload)
     });
 
     const data = await response.json();
@@ -173,34 +151,32 @@ export async function handler(event) {
     if (!response.ok) {
       return {
         statusCode: response.status,
-        headers: Object.fromEntries(responseHeaders),
+        headers: Object.fromEntries(headers),
         body: JSON.stringify({ 
-          error: "OpenAI error", 
+          error: 'OpenAI error', 
           ...data 
         })
       };
     }
 
-    // Extract text using common helper
+    // 5) Extract text and handle empty output
     let text = extractText(data);
 
-    // Handle empty output with 502 error for better debugging
     if (!text) {
-      // Raw mode retry logic
-      if (rawMode) {
-        // Retry with increased tokens
+      // For raw mode, try retry logic
+      if (isRaw) {
         const retryPayload = {
-          ...requestPayload,
-          max_output_tokens: Math.min(1024, requestPayload.max_output_tokens * 2),
+          ...payload,
+          max_output_tokens: Math.min(1024, payload.max_output_tokens * 2),
           reasoning: { effort: 'medium' },
           text: { format: { type: 'text' }, verbosity: 'medium' }
         };
         
-        const retryResponse = await fetch("https://api.openai.com/v1/responses", {
-          method: "POST",
+        const retryResponse = await fetch('https://api.openai.com/v1/responses', {
+          method: 'POST',
           headers: {
-            "content-type": "application/json",
-            "authorization": `Bearer ${apiKey}`
+            'content-type': 'application/json',
+            'authorization': `Bearer ${apiKey}`
           },
           body: JSON.stringify(retryPayload)
         });
@@ -210,15 +186,15 @@ export async function handler(event) {
           text = extractText(retryData);
         }
         
-        // Fallback for raw mode ping test
+        // Ultimate fallback for raw mode ping test
         if (!text) {
           text = 'pong';
         }
       } else {
-        // Return 502 for empty output in normal mode
+        // Return 502 for empty output (no fallback message)
         return {
           statusCode: 502,
-          headers: Object.fromEntries(responseHeaders),
+          headers: Object.fromEntries(headers),
           body: JSON.stringify({
             error: 'empty_output',
             debug: { 
@@ -235,30 +211,27 @@ export async function handler(event) {
     // Extract emotion tag if present
     const emoMatch = text.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i);
     let cleanText = text;
-    let emotionId = null;
     
     if (emoMatch) {
-      emotionId = emoMatch[1];
+      const emotionId = emoMatch[1];
       cleanText = text.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '');
-      responseHeaders.set("x-emo", emotionId);
+      headers.set('x-emo', emotionId);
     }
     
-    // Return UI-compatible format
-    const responseBody = {
-      choices: [{
-        message: {
-          role: "assistant",
-          content: cleanText
-        },
-        finish_reason: "stop"
-      }],
-      usage: data?.usage || null
-    };
-
+    // 6) Return UI-compatible format
     return {
       statusCode: 200,
-      headers: Object.fromEntries(responseHeaders),
-      body: JSON.stringify(responseBody)
+      headers: Object.fromEntries(headers),
+      body: JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: cleanText
+          },
+          finish_reason: 'stop'
+        }],
+        usage: data?.usage || null
+      })
     };
 
   } catch (err) {
@@ -269,20 +242,20 @@ export async function handler(event) {
       console.error('Session cleanup error:', cleanupErr);
     }
 
-    // Return error with domain header
+    // Return error with consistent headers
     const errorHeaders = new Headers({
-      "content-type": "application/json",
-      "access-control-allow-origin": "*",
-      "x-backend": "openai",
-      "x-model": process.env.OPENAI_MODEL || "gpt-5-mini-2025-08-07",
-      "x-domain": "error"
+      'content-type': 'application/json',
+      'access-control-allow-origin': '*',
+      'x-model': process.env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07',
+      'x-domain': 'error',
+      'x-backend': 'openai'
     });
 
     return {
       statusCode: 500,
       headers: Object.fromEntries(errorHeaders),
       body: JSON.stringify({ 
-        error: "Internal server error", 
+        error: 'Internal server error', 
         message: String(err?.message || err) 
       })
     };
