@@ -1067,6 +1067,15 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                     };
                 }
                 
+                // ECサイトの文脈を確認
+                if (userMessage.includes('EC') || userMessage.includes('Amazon') || 
+                    userMessage.includes('ネットショップ')) {
+                    return {
+                        content: 'ECサイト制作だね！費用は規模によるけど、基本50万円〜、本格的なものなら300万円〜だよ。1ヶ月の納期ならスピード開発も可能！詳しく聞かせて✨',
+                        emotion: 'professional'
+                    };
+                }
+                
                 // デフォルトのエラーメッセージ
                 return {
                     content: 'ごめんね、ちょっと調子が悪いみたい💦 もう一度話しかけてもらえる？',
