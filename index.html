@@ -969,6 +969,9 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                     throw new Error(errorData.error?.message || 'API request failed');
                 }
                 
+                // Get emotion from response header
+                const emotionFromHeader = response.headers.get('x-emo');
+                
                 const data = await response.json();
                 
                 // JSONレスポンスの解析を試みる
@@ -977,18 +980,24 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 let emotion = null;
                 let intensity = null;
                 
-                // Extract emotion tag [[emo:id]] from the end of text (if toggle enabled)
+                // Priority 1: Use emotion from x-emo header
+                if (emotionFromHeader) {
+                    emotion = emotionFromHeader;
+                    console.log('Using emotion from header:', emotion);
+                }
+                
+                // Priority 2: Extract emotion tag [[emo:id]] from the end of text (if toggle enabled)
                 let emoTag = null;
                 let cleanContent = responseContent;
                 
-                if (window.__useModelHint) {
+                if (!emotion && window.__useModelHint) {
                     emoTag = (responseContent.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i) || [])[1];
                     cleanContent = emoTag ? responseContent.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '') : responseContent;
-                }
-                
-                // Use extracted emotion tag if found
-                if (emoTag && window.__useModelHint) {
-                    emotion = emoTag;
+                    
+                    if (emoTag) {
+                        emotion = emoTag;
+                        console.log('Using emotion from tag:', emotion);
+                    }
                 }
                 
                 // メッセージオブジェクトに追加情報が含まれているか確認
@@ -1012,18 +1021,21 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 }
                 
                 // Always return clean content without emotion tag
-                responseContent = cleanContent;
+                responseContent = cleanContent || responseContent;
                 
-                // 感情情報がある場合は返す
-                if (emotion) {
-                    return {
-                        content: responseContent,
-                        emotion: emotion,
-                        intensity: intensity
-                    };
+                // Priority 3: Detect emotion from content if still not found
+                if (!emotion) {
+                    const detectedEmotion = detectEmotion(responseContent);
+                    emotion = detectedEmotion || 'neutral';
+                    console.log('Using detected/default emotion:', emotion);
                 }
                 
-                return responseContent;
+                // Always return object with emotion
+                return {
+                    content: responseContent,
+                    emotion: emotion || 'neutral',
+                    intensity: intensity || 0.8
+                };
                 
             } catch (error) {
                 console.error('ChatGPT API Error:', error);
@@ -1210,9 +1222,45 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
         
         // Update avatar expression
         function updateAvatarExpression(expression) {
+            // Normalize expression names
+            const emotionMapping = {
+                'neutral': 'normal',
+                'greeting': 'happy',
+                'grateful': 'happy',
+                'friendly': 'happy',
+                'energetic': 'excited',
+                'playful': 'wink',
+                'confident': 'motivated',
+                'professional': 'normal',
+                'explaining': 'thinking',
+                'supportive': 'happy',
+                'farewell': 'happy',
+                'curious': 'thinking',
+                'proud': 'motivated',
+                'working': 'motivated',
+                'attentive': 'thinking',
+                'determined': 'motivated',
+                'worried': 'confused',
+                'sad': 'shy',
+                'embarrassed': 'shy',
+                'loving': 'happy',
+                'impressed': 'surprised',
+                'mischievous': 'wink',
+                'satisfied': 'happy',
+                'focused': 'thinking',
+                'cool': 'wink',
+                'star_eyes': 'excited',
+                'peace': 'happy',
+                'sparkle': 'excited'
+            };
+            
+            // Map expression to available avatar class
+            const mappedExpression = emotionMapping[expression] || expression || 'normal';
+            console.log(`Mapping emotion: ${expression} -> ${mappedExpression}`);
+            
             const avatars = document.querySelectorAll('.smaichan-avatar');
             avatars.forEach(avatar => {
-                avatar.className = `smaichan-avatar smaichan-avatar-${expression}`;
+                avatar.className = `smaichan-avatar smaichan-avatar-${mappedExpression}`;
             });
             
             // Hook for future expression engine enhancements
@@ -1238,9 +1286,43 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                     <div class="message-content">${content}</div>
                 `;
             } else {
-                updateAvatarExpression(expression);
+                // Ensure expression is valid and update avatar
+                const validExpression = expression || 'normal';
+                updateAvatarExpression(validExpression);
+                
+                // Get mapped expression for avatar class
+                const emotionMapping = {
+                    'neutral': 'normal',
+                    'greeting': 'happy',
+                    'grateful': 'happy',
+                    'friendly': 'happy',
+                    'energetic': 'excited',
+                    'playful': 'wink',
+                    'confident': 'motivated',
+                    'professional': 'normal',
+                    'explaining': 'thinking',
+                    'supportive': 'happy',
+                    'farewell': 'happy',
+                    'curious': 'thinking',
+                    'proud': 'motivated',
+                    'working': 'motivated',
+                    'attentive': 'thinking',
+                    'determined': 'motivated',
+                    'worried': 'confused',
+                    'sad': 'shy',
+                    'embarrassed': 'shy',
+                    'loving': 'happy',
+                    'impressed': 'surprised',
+                    'mischievous': 'wink',
+                    'satisfied': 'happy',
+                    'focused': 'thinking',
+                    'cool': 'wink'
+                };
+                
+                const mappedExpression = emotionMapping[validExpression] || validExpression || 'normal';
+                
                 messageDiv.innerHTML = `
-                    <div class="smaichan-avatar smaichan-avatar-${expression} avatar"></div>
+                    <div class="smaichan-avatar smaichan-avatar-${mappedExpression} avatar"></div>
                     <div class="message-content">${content}</div>
                 `;
             }
@@ -1320,14 +1402,35 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             let emotionSource = responseEmotion ? 'model' : 'engine';
             
             if (!finalEmotion) {
-                const { id } = window.expressionEngine.select({
-                    text: responseText,
-                    role: 'assistant',
-                    contexts: analyzeContext(responseText),
-                    lastId: window.__lastExpressionId || null
-                });
-                window.__lastExpressionId = id;
-                finalEmotion = id;
+                // Try to detect emotion from expression engine
+                if (window.expressionEngine && window.expressionEngine.select) {
+                    const { id } = window.expressionEngine.select({
+                        text: responseText,
+                        role: 'assistant',
+                        contexts: analyzeContext(responseText),
+                        lastId: window.__lastExpressionId || null
+                    });
+                    window.__lastExpressionId = id;
+                    finalEmotion = id;
+                }
+                
+                // If still no emotion, use default
+                if (!finalEmotion) {
+                    finalEmotion = 'neutral';
+                    console.log('Using default emotion: neutral');
+                }
+            }
+            
+            // Validate emotion exists in emotion map
+            const validEmotions = ['happy', 'thinking', 'confused', 'wink', 'excited', 'shy', 
+                                   'sleepy', 'surprised', 'motivated', 'neutral', 'normal',
+                                   'greeting', 'grateful', 'friendly', 'energetic', 'playful',
+                                   'confident', 'professional', 'explaining', 'supportive',
+                                   'farewell', 'curious', 'proud', 'working', 'attentive'];
+            
+            if (!validEmotions.includes(finalEmotion)) {
+                console.log(`Unknown emotion "${finalEmotion}", using neutral`);
+                finalEmotion = 'neutral';
             }
             
             // Send metrics (fire-and-forget)
