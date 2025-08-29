@@ -436,7 +436,7 @@ let text = extractText(data);
 
 // max_output_tokens が小さすぎて未完了 → 一度だけ増やして再試行
 if (!text && (data?.status === 'incomplete' || data?.incomplete_details?.reason === 'max_output_tokens')) {
-  payload.max_output_tokens = Math.max(128, (payload.max_output_tokens || 64) * 2);
+  payload.max_output_tokens = Math.max(512, (payload.max_output_tokens || 256) * 2);
   sanitizeResponsesPayload(payload);
 
   const res2 = await fetch('https://api.openai.com/v1/responses', {
