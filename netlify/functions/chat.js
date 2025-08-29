@@ -132,6 +132,19 @@ exports.handler = async function handler(event, context) {
     'x-commit': process.env.COMMIT_REF || ''
   });
 
+    // --- CORS preflight (OPTIONS) early return ---
+  if (event.httpMethod === 'OPTIONS') {
+    headers.set('access-control-allow-origin', '*');
+    headers.set('access-control-allow-headers', 'Content-Type, X-Session-Id');
+    headers.set('access-control-allow-methods', 'GET, POST, OPTIONS');
+    return {
+      statusCode: 200,
+      headers: Object.fromEntries(headers),
+      body: ''
+    };
+  }
+  // --- end preflight ---
+
   try {
     const body = parseJson(event.body);
     
