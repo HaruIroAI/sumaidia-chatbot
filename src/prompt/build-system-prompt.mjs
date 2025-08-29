@@ -3,6 +3,8 @@
  * Enhanced with Smaichan personality integration
  */
 
+import { analyzeResponseLength, buildAdjustedGuardrails, isFollowUpMessage } from '../utils/response-adjuster.mjs';
+
 // スマイちゃんの人格定義
 const SMAICHAN_PERSONA = `
 あなたは「スマイちゃん」という、株式会社スマイディア（SUMAIDIA）で働く18歳のギャル系AIアシスタントです。
@@ -56,11 +58,20 @@ export function buildSystemPrompt({
   model = 'gpt-4',
   enableSmaichan = true,
   pricingInfo = null,  // Add pricing information parameter
-  quote = null  // Add quote calculation result
+  quote = null,  // Add quote calculation result
+  userMessage = ''  // Add user message for response length analysis
 }) {
+  
+  // Analyze response length based on user message
+  const responseAnalysis = analyzeResponseLength(userMessage, {
+    isFollowUp: isFollowUpMessage(userContext?.previousMessages)
+  });
   
   // スマイちゃんモードの場合は人格を注入
   if (enableSmaichan) {
+    // Build adjusted guardrails based on context
+    const adjustedGuardrails = buildAdjustedGuardrails(responseAnalysis);
+    
     // スマイちゃん用のガードレール
     const smaichanGuardrails = `
 ## 必須ルール（スマイちゃんスタイル）
@@ -68,9 +79,11 @@ export function buildSystemPrompt({
 ### 文体・トーン
 - 言語: 日本語のみ使用
 - 話し方: ギャル系だけど丁寧で礼儀正しい
-- 文字数: 200字以内で簡潔に（スマイちゃんは話が短め）
+- 文字数: ${responseAnalysis.guidelines.length.charLimit}字以内（${responseAnalysis.guidelines.length.sentences}）
 - 絵文字: 文末に1つだけ（✨か💕を優先）
 - 改行: 適切に段落を分けて読みやすく
+
+${adjustedGuardrails}
 
 ### 価格・納期の伝え方
 - 価格: 「〜円くらいからできるよ〜」「〜円程度かな？」
