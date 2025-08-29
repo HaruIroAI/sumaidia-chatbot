@@ -860,6 +860,12 @@
         // Enhanced ChatGPT API Call with Context Awareness
         async function callChatGPT(userMessage) {
             try {
+                console.log('Calling ChatGPT API...', {
+                    isNetlify: isNetlify,
+                    hasApiKey: !!apiKey,
+                    message: userMessage.substring(0, 50) + '...'
+                });
+                
                 // 1. 文脈を分析
                 const contexts = analyzeContext(userMessage);
                 
@@ -1039,12 +1045,36 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 
             } catch (error) {
                 console.error('ChatGPT API Error:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    userMessage: userMessage
+                });
+                
                 // エラー時は文脈に応じたフォールバック
                 const contexts = analyzeContext(userMessage);
-                if (contexts.includes('pricing')) {
-                    return 'あら〜、ちょっと調子悪いみたい💦 でも名刺は100枚3,000円〜、チラシはA4/1,000枚5,000円〜だよ！詳しくは直接お問い合わせして〜✨';
+                
+                // ビジネス相談の文脈を追加
+                if (userMessage.includes('売上') || userMessage.includes('売り上げ') || 
+                    userMessage.includes('困って') || userMessage.includes('相談')) {
+                    return {
+                        content: 'あら、大変だね💦 売上アップなら、印刷物でのPRが効果的だよ！チラシやDM、Web広告用バナーとか、一緒に戦略考えようか？✨',
+                        emotion: 'supportive'
+                    };
                 }
-                return null;
+                
+                if (contexts.includes('pricing')) {
+                    return {
+                        content: 'あら〜、ちょっと調子悪いみたい💦 でも名刺は100枚3,000円〜、チラシはA4/1,000枚5,000円〜だよ！詳しくは直接お問い合わせして〜✨',
+                        emotion: 'worried'
+                    };
+                }
+                
+                // デフォルトのエラーメッセージ
+                return {
+                    content: 'ごめんね、ちょっと調子が悪いみたい💦 もう一度話しかけてもらえる？',
+                    emotion: 'worried'
+                };
             }
         }
         
@@ -1375,9 +1405,32 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             }
             
             if (response == null) {
-                // Use offline response
-                response = window.generateResponse ? window.generateResponse(userMessage) : 
-                    '素敵なメッセージありがとう〜！印刷のこと何でも聞いてね💕';
+                console.warn('API returned null, using fallback response');
+                
+                // Try offline response first
+                if (window.generateResponse) {
+                    response = window.generateResponse(userMessage);
+                } else {
+                    // Context-aware fallback
+                    if (userMessage.includes('売上') || userMessage.includes('売り上げ') || 
+                        userMessage.includes('困って') || userMessage.includes('相談')) {
+                        response = {
+                            content: '売上アップのご相談だね！印刷物でのPRは効果的だよ〜✨ チラシやDM、ポスターで集客UP！どんなお店や商品をPRしたいか教えて💕',
+                            emotion: 'supportive'
+                        };
+                    } else if (userMessage.includes('印刷') || userMessage.includes('名刺') || 
+                              userMessage.includes('チラシ')) {
+                        response = {
+                            content: '印刷のご相談だね！どんなものを作りたいか詳しく教えて〜✨ サイズや枚数、いつまでに必要かも教えてもらえると見積もり出せるよ💕',
+                            emotion: 'professional'
+                        };
+                    } else {
+                        response = {
+                            content: 'ごめんね、ちょっと接続が不安定みたい💦 もう一度お話し聞かせて？印刷のことなら何でも相談してね✨',
+                            emotion: 'worried'
+                        };
+                    }
+                }
             }
             
             if (typeof response === 'string' && response.trim() === '') {
