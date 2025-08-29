@@ -159,6 +159,7 @@ exports.handler = async function handler(event, context) {
     let systemPrompt = '';
     let userText = '';
     let input;
+    let messageComplexity = null; // Move to outer scope
 
     // === EARLY RETURN PATHS (no ESM loading) ===
     
@@ -226,12 +227,11 @@ else if (isRaw) {
       const userMessageText = latestUserMessage?.content || '';
       
       // Analyze message complexity first
-      let messageComplexity = null;
       try {
         const optimizerMod = await import(esmUrlFromSrc('utils', 'response-optimizer.mjs'));
         const { preprocessMessage } = optimizerMod;
         const analysis = preprocessMessage(userMessageText);
-        messageComplexity = analysis.complexity;
+        messageComplexity = analysis.complexity; // Use outer scope variable
         headers.set('x-complexity', String(messageComplexity));
         
         // If message is simple enough, check quick responses
