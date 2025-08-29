@@ -354,17 +354,17 @@ else if (isRaw) {
     
     // Create unified OpenAI payload (Responses API)
 // === AFTER ===
-const MIN_TOKENS = 128;
-const wanted = Number(body?.max_output_tokens);
+const MIN_TOKENS = 256;  // ← 下限アップ
 const payload = {
   model: model,
   input: input,
   text: { format: { type: 'text' }, verbosity: 'low' },
-  reasoning: { effort: 'low' },
+  // reasoning は付けない（小モデルでは出力トークンが丸ごと思考に回るため）
   max_output_tokens: Number.isFinite(wanted) && wanted > 0
     ? Math.max(MIN_TOKENS, wanted)
     : MIN_TOKENS
 };
+
 sanitizeResponsesPayload(payload);
 
 
