@@ -328,7 +328,7 @@ else if (isRaw) {
           enableSmaichan: enableSmaichan,  // Use environment-controlled setting
           pricingInfo: routingResult.pricingInfo,  // Pass pricing information
           quote: routingResult.quote,  // Pass quote calculation
-          userMessage: userMessage  // Pass user message for response length analysis
+          userMessage: userText  // Pass user message for response length analysis
         });
 
         // Build input for Responses API
