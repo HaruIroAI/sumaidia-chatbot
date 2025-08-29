@@ -23,13 +23,16 @@ function sanitizeResponsesPayload(p) {
 }
 
 // ---- ESM の絶対URL生成（Lambda/ローカル両対応）-----------------
-function murl(...segments) {
-  const root = process.env.LAMBDA_TASK_ROOT || __dirname; // Lambda でも OK
-  const abs = join(root, ...segments);
+function esmUrlFromSrc(...segmentsFromSrc) {
+  const isLambda = !!process.env.LAMBDA_TASK_ROOT;
+  const base = isLambda ? process.env.LAMBDA_TASK_ROOT : __dirname;
+  // Lambda: /var/task/src/...
+  // Local/Preview: <project>/netlify/functions/../../src/...
+  const abs = isLambda
+    ? join(base, 'src', ...segmentsFromSrc)
+    : join(base, '..', '..', 'src', ...segmentsFromSrc);
   return pathToFileURL(abs).href; // import() に渡せる file:// URL
 }
-
-// ==========================================================
 
 /**
  * Cached ESM module loaders with lazy loading
@@ -38,24 +41,21 @@ let _intentMod, _routerMod, _promptMod;
 
 async function loadIntent() {
   if (!_intentMod) {
-    const url = murl('..','..','src','intent','intent-classifier.mjs');
-    _intentMod = await import(url);
+    _intentMod = await import(esmUrlFromSrc('intent', 'intent-classifier.mjs'));
   }
   return _intentMod;
 }
 
 async function loadRouter() {
   if (!_routerMod) {
-    const url = murl('..','..','src','agent','router.mjs');
-    _routerMod = await import(url);
+    _routerMod = await import(esmUrlFromSrc('agent', 'router.mjs'));
   }
   return _routerMod;
 }
 
 async function loadPrompt() {
   if (!_promptMod) {
-    const url = murl('..','..','src','prompt','build-system-prompt.mjs');
-    _promptMod = await import(url);
+    _promptMod = await import(esmUrlFromSrc('prompt', 'build-system-prompt.mjs'));
   }
   return _promptMod;
 }
