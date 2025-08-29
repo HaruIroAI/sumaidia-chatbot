@@ -8,11 +8,13 @@ const BANNED_KEYS = [
   'stop','seed','response_format'
 ];
 
+function deepClone(o){ return JSON.parse(JSON.stringify(o ?? {})); }
+
 function sanitizePayload(obj) {
-  const clean = JSON.parse(JSON.stringify(obj || {}));
+  const clean = deepClone(obj);
   for (const k of BANNED_KEYS) delete clean[k];
   // 念のためネストも潰す
-  if (clean.text && 'temperature' in clean.text) delete clean.text.temperature;
+  if (clean.text && typeof clean.text === 'object') delete clean.text.temperature;
   if (clean.response_format) delete clean.response_format;
   return clean;
 }
@@ -24,17 +26,18 @@ function toResponsesPayload({ input, max_output_tokens }) {
     input,
     max_output_tokens: capped,
     text: { format: { type: 'text' }, verbosity: 'low' },
-    reasoning: { effort: 'low' }
+    reasoning: { effort: 'low' },
   });
 }
 
-// Netlify Lambda 環境: /var/task が配置ルート
+// Netlify Lambda 環境の配置ルート
+const ROOT = process.env.LAMBDA_TASK_ROOT || __dirname;
+
+// 文字列リテラルのみを許可（可変や undefined を渡さない）
 function fileUrlFromRoot(rel) {
-  const base = process.env.LAMBDA_TASK_ROOT || __dirname;
-  return pathToFileURL(path.join(base, rel)).href;
+  return pathToFileURL(path.join(ROOT, rel)).href;
 }
 
-// 相対の ../../ … は使わない。リポジトリ内の配置を固定で指定
 let _intentMod, _routerMod, _promptMod;
 
 async function loadIntent() {
@@ -301,13 +304,13 @@ exports.handler = async function handler(event, context) {
 
     // === OPENAI API CALL (common path) ===
     
-    // 統一されたペイロード作成（全経路で必ず sanitize される）
+    // input は Responses API 形式の配列（raw=1 はそのまま、通常は messages から変換）
     const finalInput = body?.input ?? input || toResponsesInputFromMessages(body?.messages || []);
     const payload = toResponsesPayload({ 
       input: finalInput, 
       max_output_tokens: body?.max_output_tokens 
     });
-    // ここから先は payload に禁止キーが存在しない
+    // ここ以降は payload に禁止キーが無い前提
     
     // Debug mode: add payload_keys and x-sanitized header
     if (debug) {
@@ -407,7 +410,9 @@ exports.handler = async function handler(event, context) {
         headers: Object.fromEntries(headers),
         body: JSON.stringify({
           ok: true,
-          payload_keys: Object.keys(payload),  // 禁止キーが除去されていることを確認
+          debug: {
+            payload_keys: Object.keys(payload)  // 禁止キーが除去されていることを確認
+          },
           payload: {
             model: payload.model,
             input_type: Array.isArray(payload.input) ? 'array' : typeof payload.input,
@@ -423,7 +428,14 @@ exports.handler = async function handler(event, context) {
             text: text,
             domain: headers.get('x-domain'),
             sanitized: headers.get('x-sanitized') === '1'
-          }
+          },
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: text
+            },
+            finish_reason: 'stop'
+          }]
         })
       };
     }
