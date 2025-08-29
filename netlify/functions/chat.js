@@ -1,28 +1,52 @@
 const { extractText } = require("./_extractText.js");
+const path = require('path');
+const { pathToFileURL } = require('url');
 
-/**
- * Cached ESM module loaders with lazy loading
- */
+// ---- Responses API payload sanitation (single source of truth) ----
+const BANNED_KEYS = [
+  'temperature','top_p','frequency_penalty','presence_penalty',
+  'stop','seed','response_format'
+];
+
+function sanitizePayload(obj) {
+  const clean = JSON.parse(JSON.stringify(obj || {}));
+  for (const k of BANNED_KEYS) delete clean[k];
+  // 念のためネストも潰す
+  if (clean.text && 'temperature' in clean.text) delete clean.text.temperature;
+  if (clean.response_format) delete clean.response_format;
+  return clean;
+}
+
+function toResponsesPayload({ input, max_output_tokens }) {
+  const capped = Math.min(512, Number(max_output_tokens || 256));
+  return sanitizePayload({
+    model: process.env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07',
+    input,
+    max_output_tokens: capped,
+    text: { format: { type: 'text' }, verbosity: 'low' },
+    reasoning: { effort: 'low' }
+  });
+}
+
+// Netlify Lambda 環境: /var/task が配置ルート
+function fileUrlFromRoot(rel) {
+  const base = process.env.LAMBDA_TASK_ROOT || __dirname;
+  return pathToFileURL(path.join(base, rel)).href;
+}
+
+// 相対の ../../ … は使わない。リポジトリ内の配置を固定で指定
 let _intentMod, _routerMod, _promptMod;
 
 async function loadIntent() {
-  if (!_intentMod) {
-    _intentMod = await import('../../src/intent/intent-classifier.mjs');
-  }
+  if (!_intentMod) _intentMod = await import(fileUrlFromRoot('src/intent/intent-classifier.mjs'));
   return _intentMod;
 }
-
 async function loadRouter() {
-  if (!_routerMod) {
-    _routerMod = await import('../../src/agent/router.mjs');
-  }
+  if (!_routerMod) _routerMod = await import(fileUrlFromRoot('src/agent/router.mjs'));
   return _routerMod;
 }
-
 async function loadPrompt() {
-  if (!_promptMod) {
-    _promptMod = await import('../../src/prompt/build-system-prompt.mjs');
-  }
+  if (!_promptMod) _promptMod = await import(fileUrlFromRoot('src/prompt/build-system-prompt.mjs'));
   return _promptMod;
 }
 
@@ -277,15 +301,19 @@ exports.handler = async function handler(event, context) {
 
     // === OPENAI API CALL (common path) ===
     
-    // Create unified OpenAI payload (Responses API)
-    const payload = {
-      model: model,
-      input: input,
-      text: { format: { type: 'text' }, verbosity: 'low' },
-      reasoning: { effort: 'low' },
-      temperature: 0.3,
-      max_output_tokens: Math.max(256, Number(body?.max_output_tokens || 500))
-    };
+    // 統一されたペイロード作成（全経路で必ず sanitize される）
+    const finalInput = body?.input ?? input || toResponsesInputFromMessages(body?.messages || []);
+    const payload = toResponsesPayload({ 
+      input: finalInput, 
+      max_output_tokens: body?.max_output_tokens 
+    });
+    // ここから先は payload に禁止キーが存在しない
+    
+    // Debug mode: add payload_keys and x-sanitized header
+    if (debug) {
+      headers.set('x-sanitized', '1');
+      console.log('[DEBUG] Sanitized payload keys:', Object.keys(payload));
+    }
 
     // Check for API key
     if (!apiKey) {
@@ -379,6 +407,7 @@ exports.handler = async function handler(event, context) {
         headers: Object.fromEntries(headers),
         body: JSON.stringify({
           ok: true,
+          payload_keys: Object.keys(payload),  // 禁止キーが除去されていることを確認
           payload: {
             model: payload.model,
             input_type: Array.isArray(payload.input) ? 'array' : typeof payload.input,
@@ -392,7 +421,8 @@ exports.handler = async function handler(event, context) {
           },
           response: {
             text: text,
-            domain: headers.get('x-domain')
+            domain: headers.get('x-domain'),
+            sanitized: headers.get('x-sanitized') === '1'
           }
         })
       };

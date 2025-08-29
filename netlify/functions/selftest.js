@@ -1,9 +1,9 @@
 export async function handler(event) {
   try {
     // いま実行中のオリジン（Deploy Preview / 本番どちらでも OK）
-    const origin = new URL(event.rawUrl).origin;
+    const origin = new URL(event.rawUrl || event.url || 'http://localhost').origin;
 
-    // /chat?raw=1 を同一オリジンで叩く（本番と同一パイプライン）
+    // /chat?raw=1 を同一オリジンで叩く（最小限のペイロードのみ）
     const payload = {
       input: [
         { role: 'system', content: [{ type: 'input_text', text: '「pong」と1語だけ返す' }] },
@@ -31,10 +31,14 @@ export async function handler(event) {
       model
     };
 
-    // デバッグ時は raw を同梱
-    const u = new URL(event.rawUrl);
+    // デバッグ時は payload_keys も含める
+    const u = new URL(event.rawUrl || event.url || 'http://localhost');
     if (u.searchParams.get('debug') === '1') {
       body.raw = data;
+      // chat?debug=1 から返されたpayload_keysがあれば含める
+      if (data.payload_keys) {
+        body.payload_keys = data.payload_keys;
+      }
     }
 
     return {
