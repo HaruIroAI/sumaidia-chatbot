@@ -3,44 +3,44 @@
  * Provides instant responses for common greetings without AI
  */
 
-// Common greetings and their quick responses
+// Common greetings and their quick responses with emotion tags
 const QUICK_RESPONSES = {
   greetings: {
     patterns: [
-      { match: /^こんにちは[！!]*$/i, response: "はろー！何か作りたいものある？✨" },
-      { match: /^はじめまして[！!]*$/i, response: "はじめまして〜！スマイちゃんだよ。印刷のこと何でも聞いてね💕" },
-      { match: /^おはよう(?:ございます)?[！!]*$/i, response: "おはよ〜！今日も元気にいこう✨" },
-      { match: /^こんばんは[！!]*$/i, response: "こんばんは〜！遅くまでお疲れさま💕" },
-      { match: /^hello[！!]*$/i, response: "Hello! スマイちゃんです✨" },
-      { match: /^hi[！!]*$/i, response: "Hi! 何かお手伝いできる？💕" },
-      { match: /^はろー[！!]*$/i, response: "はろー！元気？何か作る？✨" },
-      { match: /^やっほー[！!]*$/i, response: "やっほー！調子どう？💕" },
-      { match: /^よろしく(?:お願いします)?[！!]*$/i, response: "よろしくね〜！何でも相談して✨" }
+      { match: /^こんにちは[！!]*$/i, response: "はろー！何か作りたいものある？✨ [[emo:greeting]]" },
+      { match: /^はじめまして[！!]*$/i, response: "はじめまして〜！スマイちゃんだよ。印刷のこと何でも聞いてね💕 [[emo:friendly]]" },
+      { match: /^おはよう(?:ございます)?[！!]*$/i, response: "おはよ〜！今日も元気にいこう✨ [[emo:energetic]]" },
+      { match: /^こんばんは[！!]*$/i, response: "こんばんは〜！遅くまでお疲れさま💕 [[emo:greeting]]" },
+      { match: /^hello[！!]*$/i, response: "Hello! スマイちゃんです✨ [[emo:greeting]]" },
+      { match: /^hi[！!]*$/i, response: "Hi! 何かお手伝いできる？💕 [[emo:friendly]]" },
+      { match: /^はろー[！!]*$/i, response: "はろー！元気？何か作る？✨ [[emo:greeting]]" },
+      { match: /^やっほー[！!]*$/i, response: "やっほー！調子どう？💕 [[emo:playful]]" },
+      { match: /^よろしく(?:お願いします)?[！!]*$/i, response: "よろしくね〜！何でも相談して✨ [[emo:friendly]]" }
     ]
   },
   thanks: {
     patterns: [
-      { match: /^ありがとう(?:ございます)?[！!]*$/i, response: "どういたしまして〜！また何かあったら言ってね💕" },
-      { match: /^thanks?[！!]*$/i, response: "You're welcome! 他にも聞きたいことある？✨" },
-      { match: /^どうも[！!]*$/i, response: "いえいえ〜！お役に立てて嬉しい💕" }
+      { match: /^ありがとう(?:ございます)?[！!]*$/i, response: "どういたしまして〜！また何かあったら言ってね💕 [[emo:grateful]]" },
+      { match: /^thanks?[！!]*$/i, response: "You're welcome! 他にも聞きたいことある？✨ [[emo:happy]]" },
+      { match: /^どうも[！!]*$/i, response: "いえいえ〜！お役に立てて嬉しい💕 [[emo:happy]]" }
     ]
   },
   farewell: {
     patterns: [
-      { match: /^(?:それ)?じゃ+(?:ね)?[！!]*$/i, response: "またね〜！いつでも来てね✨" },
-      { match: /^バイバイ[！!]*$/i, response: "バイバイ〜！また話そうね💕" },
-      { match: /^さよ(?:う)?なら[！!]*$/i, response: "さよなら〜！気をつけてね✨" },
-      { match: /^またね[！!]*$/i, response: "うん、またね〜！楽しみにしてる💕" },
-      { match: /^bye[！!]*$/i, response: "Bye bye! See you soon✨" }
+      { match: /^(?:それ)?じゃ+(?:ね)?[！!]*$/i, response: "またね〜！いつでも来てね✨ [[emo:farewell]]" },
+      { match: /^バイバイ[！!]*$/i, response: "バイバイ〜！また話そうね💕 [[emo:farewell]]" },
+      { match: /^さよ(?:う)?なら[！!]*$/i, response: "さよなら〜！気をつけてね✨ [[emo:farewell]]" },
+      { match: /^またね[！!]*$/i, response: "うん、またね〜！楽しみにしてる💕 [[emo:farewell]]" },
+      { match: /^bye[！!]*$/i, response: "Bye bye! See you soon✨ [[emo:farewell]]" }
     ]
   },
   simple: {
     patterns: [
-      { match: /^はい[！!]*$/i, response: "オッケー！何か聞きたいことある？✨" },
-      { match: /^うん[！!]*$/i, response: "了解〜！続きをどうぞ💕" },
-      { match: /^ok[！!]*$/i, response: "OK! 他に何かある？✨" },
-      { match: /^わかった[！!]*$/i, response: "よかった〜！他にも質問ある？💕" },
-      { match: /^なるほど[！!]*$/i, response: "だよね〜！何か作りたいものとかある？✨" }
+      { match: /^はい[！!]*$/i, response: "オッケー！何か聞きたいことある？✨ [[emo:confident]]" },
+      { match: /^うん[！!]*$/i, response: "了解〜！続きをどうぞ💕 [[emo:friendly]]" },
+      { match: /^ok[！!]*$/i, response: "OK! 他に何かある？✨ [[emo:confident]]" },
+      { match: /^わかった[！!]*$/i, response: "よかった〜！他にも質問ある？💕 [[emo:happy]]" },
+      { match: /^なるほど[！!]*$/i, response: "だよね〜！何か作りたいものとかある？✨ [[emo:thinking]]" }
     ]
   }
 };
@@ -49,19 +49,19 @@ const QUICK_RESPONSES = {
 const QUICK_FAQ = {
   hours: {
     patterns: [/営業時間/, /何時から/, /何時まで/, /開いて/],
-    response: "平日8:30-18:00、土曜は隔週営業だよ〜！日祝はお休み✨"
+    response: "平日8:30-18:00、土曜は隔週営業だよ〜！日祝はお休み✨ [[emo:explaining]]"
   },
   location: {
     patterns: [/どこにある/, /場所は/, /住所/],
-    response: "滋賀県栗東市が本社で、東京にもオフィスあるよ！詳しい住所教える？💕"
+    response: "滋賀県栗東市が本社で、東京にもオフィスあるよ！詳しい住所教える？💕 [[emo:explaining]]"
   },
   contact: {
     patterns: [/電話番号/, /連絡先/],
-    response: "077-552-1045だよ！平日8:30-18:00に電話してね✨"
+    response: "077-552-1045だよ！平日8:30-18:00に電話してね✨ [[emo:professional]]"
   },
   services: {
     patterns: [/何ができる/, /できること/, /サービス/],
-    response: "印刷全般、Web制作、動画、SNS運用とか何でもできるよ〜！詳しく聞きたい？💕"
+    response: "印刷全般、Web制作、動画、SNS運用とか何でもできるよ〜！詳しく聞きたい？💕 [[emo:proud]]"
   }
 };
 
@@ -142,22 +142,22 @@ export function needsAIProcessing(message) {
 export function getVariedResponse(category) {
   const variations = {
     greeting: [
-      "はろー！何か作りたいものある？✨",
-      "やっほー！今日は何しよっか💕",
-      "こんにちは〜！印刷のこと聞きたい？✨",
-      "はろー！スマイちゃんだよ〜💕"
+      "はろー！何か作りたいものある？✨ [[emo:greeting]]",
+      "やっほー！今日は何しよっか💕 [[emo:playful]]",
+      "こんにちは〜！印刷のこと聞きたい？✨ [[emo:friendly]]",
+      "はろー！スマイちゃんだよ〜💕 [[emo:greeting]]"
     ],
     thanks: [
-      "どういたしまして〜！💕",
-      "いえいえ！またね〜✨",
-      "喜んでもらえて嬉しい〜💕",
-      "またいつでも聞いてね✨"
+      "どういたしまして〜！💕 [[emo:grateful]]",
+      "いえいえ！またね〜✨ [[emo:happy]]",
+      "喜んでもらえて嬉しい〜💕 [[emo:happy]]",
+      "またいつでも聞いてね✨ [[emo:friendly]]"
     ],
     simple: [
-      "オッケー！✨",
-      "了解〜💕",
-      "うんうん！✨",
-      "わかった〜💕"
+      "オッケー！✨ [[emo:confident]]",
+      "了解〜💕 [[emo:friendly]]",
+      "うんうん！✨ [[emo:attentive]]",
+      "わかった〜💕 [[emo:confident]]"
     ]
   };
 
