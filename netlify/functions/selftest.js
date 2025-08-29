@@ -1,52 +1,32 @@
-export async function handler(event) {
+// netlify/functions/selftest.js
+exports.handler = async () => {
   try {
-    // いま実行中のオリジン（Deploy Preview / 本番どちらでも OK）
-    const origin = new URL(event.rawUrl).origin;
-
-    // /chat?raw=1 を同一オリジンで叩く（本番と同一パイプライン）
-    const payload = {
-      input: [
-        { role: 'system', content: [{ type: 'input_text', text: '「pong」と1語だけ返す' }] },
-        { role: 'user',   content: [{ type: 'input_text', text: 'ping' }] }
-      ],
-      max_output_tokens: 16
-    };
-
-    const res = await fetch(`${origin}/.netlify/functions/chat?raw=1`, {
+    const res = await fetch(process.env.URL + '/.netlify/functions/chat?raw=1', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        input: [
+          { role: 'system', content: [{ type:'input_text', text:'「pong」と1語だけ返す' }] },
+          { role: 'user',   content: [{ type:'input_text', text:'ping' }] }
+        ],
+        // ← 小さすぎると不完全になるので最低 256 を投げる
+        max_output_tokens: 256
+      })
     });
 
-    const model = res.headers.get('x-model') || process.env.OPENAI_MODEL || 'gpt-5-mini';
-    const data  = await res.json().catch(() => ({}));
-
-    const text = data?.choices?.[0]?.message?.content?.trim() || '';
-    const ok   = text === 'pong';
-
-    const body = {
-      ok,
-      expected: 'pong',
-      sample: text,
-      model
-    };
-
-    // デバッグ時は raw を同梱
-    const u = new URL(event.rawUrl);
-    if (u.searchParams.get('debug') === '1') {
-      body.raw = data;
-    }
+    const json = await res.json();
+    const text = json?.choices?.[0]?.message?.content ?? json?.output_text ?? '';
 
     return {
-      statusCode: ok ? 200 : 500,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body)
+      statusCode: 200,
+      headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
+      body: JSON.stringify({ ok: text.trim() === 'pong', expected: 'pong', sample: text, model: 'gpt-5-mini' })
     };
-  } catch (err) {
+  } catch (e) {
     return {
       statusCode: 500,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ok: false, error: String(err) })
+      headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
+      body: JSON.stringify({ ok:false, error: String(e) })
     };
   }
-}
+};
