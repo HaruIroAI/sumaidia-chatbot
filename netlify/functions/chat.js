@@ -351,14 +351,14 @@ else if (isRaw) {
     }
 
 // === OPENAI API CALL (common path) ===
-const MIN_TOKENS = 256;                 // ← 下限は 256
-const wanted = Number(body?.max_output_tokens);  // ← これを忘れると今回のエラーになる
+const MIN_TOKENS = 512;  // ← 下限を大きめに（512でも可）
+const wanted = Number(body?.max_output_tokens);  // ← これを必ず定義
 
 const payload = {
   model: model,
   input: input,
   text: { format: { type: 'text' }, verbosity: 'low' },
-  // reasoning は付けない（小モデルだと出力トークンが思考に吸われやすい）
+  // reasoning フィールドは付けない（でも内部思考は起き得る）
   max_output_tokens: Number.isFinite(wanted) && wanted > 0
     ? Math.max(MIN_TOKENS, wanted)
     : MIN_TOKENS
