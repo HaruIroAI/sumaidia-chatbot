@@ -225,9 +225,26 @@ else if (isRaw) {
       const latestUserMessage = userMessages[userMessages.length - 1];
       const userMessageText = latestUserMessage?.content || '';
       
+      // Analyze message complexity first
+      let messageComplexity = null;
+      try {
+        const optimizerMod = await import(esmUrlFromSrc('utils', 'response-optimizer.mjs'));
+        const { preprocessMessage } = optimizerMod;
+        const analysis = preprocessMessage(userMessageText);
+        messageComplexity = analysis.complexity;
+        headers.set('x-complexity', String(messageComplexity));
+        
+        // If message is simple enough, check quick responses
+        if (analysis.skipAI) {
+          headers.set('x-optimization', 'skip-ai');
+        }
+      } catch (optimizerError) {
+        console.error('Optimizer error:', optimizerError);
+      }
+      
       // Check for quick response first (skip AI for simple greetings)
       try {
-        const quickResponseMod = await import(esmUrlFromSrc('utils', 'quick-response.mjs'));
+        const quickResponseMod = await import(esmUrlFromSrc('utils', 'enhanced-quick-response.mjs'));
         const { getQuickResponse } = quickResponseMod;
         
         const quickResponse = getQuickResponse(userMessageText);
@@ -455,17 +472,32 @@ else if (isRaw) {
 
 // === OPENAI API CALL (common path) ===
 
-// ▼ここから置き換え
-const MIN_TOKENS = 1024;                       // 下限を 1024 に引き上げ
+// Optimize token count based on message complexity
+let MIN_TOKENS = 1024;  // Default
+let optimizedTokens = MIN_TOKENS;
+
+// Adjust tokens based on complexity if available
+if (messageComplexity !== null && messageComplexity !== undefined) {
+  try {
+    const optimizerMod = await import(esmUrlFromSrc('utils', 'response-optimizer.mjs'));
+    const { getOptimizedModelParams } = optimizerMod;
+    const params = getOptimizedModelParams(messageComplexity);
+    optimizedTokens = params.max_tokens || MIN_TOKENS;
+    MIN_TOKENS = Math.min(optimizedTokens, MIN_TOKENS);
+  } catch (e) {
+    console.error('Failed to optimize params:', e);
+  }
+}
+
 const wanted = Number(body?.max_output_tokens);
 
 const payload = {
   model,
   input,
-  text: { format: { type: 'text' } },          // verbosity は外す
+  text: { format: { type: 'text' } },
   max_output_tokens: Number.isFinite(wanted) && wanted > 0
-    ? Math.max(MIN_TOKENS, wanted)            // クライアント指定があっても下限保障
-    : MIN_TOKENS
+    ? Math.max(MIN_TOKENS, wanted)
+    : optimizedTokens  // Use optimized tokens instead of fixed MIN_TOKENS
 };
 
 // 通常チャットでは推論モードを使わない（reasoning トークンを食いにくくする）
