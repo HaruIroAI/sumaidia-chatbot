@@ -12,13 +12,13 @@ const MAX_CACHE_SIZE = 100;
 const QUICK_RESPONSES = {
   greetings: {
     patterns: [
-      { match: /^こんにちは[！!]*$/i, response: "はろー！何か作りたいものある？✨ [[emo:greeting]]" },
+      { match: /^こんにちは[！!]*$/i, response: "こんにちは〜！何か作りたいものある？✨ [[emo:greeting]]" },
       { match: /^はじめまして[！!]*$/i, response: "はじめまして〜！スマイちゃんだよ。印刷のこと何でも聞いてね💕 [[emo:friendly]]" },
       { match: /^おはよう(?:ございます)?[！!]*$/i, response: "おはよ〜！今日も元気にいこう✨ [[emo:energetic]]" },
       { match: /^こんばんは[！!]*$/i, response: "こんばんは〜！遅くまでお疲れさま💕 [[emo:greeting]]" },
       { match: /^hello[！!]*$/i, response: "Hello! スマイちゃんです✨ [[emo:greeting]]" },
       { match: /^hi[！!]*$/i, response: "Hi! 何かお手伝いできる？💕 [[emo:friendly]]" },
-      { match: /^はろー[！!]*$/i, response: "はろー！元気？何か作る？✨ [[emo:greeting]]" },
+      { match: /^はろー[！!]*$/i, response: "やっほー！元気？何か作る？✨ [[emo:greeting]]" },
       { match: /^やっほー[！!]*$/i, response: "やっほー！調子どう？💕 [[emo:playful]]" },
       { match: /^よろしく(?:お願いします)?[！!]*$/i, response: "よろしくね〜！何でも相談して✨ [[emo:friendly]]" },
       { match: /^どうも[！!]*$/i, response: "どうも〜！今日は何かお手伝いできる？✨ [[emo:greeting]]" },
