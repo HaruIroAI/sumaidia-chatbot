@@ -350,23 +350,20 @@ else if (isRaw) {
       input = [];
     }
 
-    // === OPENAI API CALL (common path) ===
-    
-    // Create unified OpenAI payload (Responses API)
-// === AFTER ===
-const MIN_TOKENS = 256;  // ← 下限アップ
+// === OPENAI API CALL (common path) ===
+const MIN_TOKENS = 256;                 // ← 下限は 256
+const wanted = Number(body?.max_output_tokens);  // ← これを忘れると今回のエラーになる
+
 const payload = {
   model: model,
   input: input,
   text: { format: { type: 'text' }, verbosity: 'low' },
-  // reasoning は付けない（小モデルでは出力トークンが丸ごと思考に回るため）
+  // reasoning は付けない（小モデルだと出力トークンが思考に吸われやすい）
   max_output_tokens: Number.isFinite(wanted) && wanted > 0
     ? Math.max(MIN_TOKENS, wanted)
     : MIN_TOKENS
 };
-
 sanitizeResponsesPayload(payload);
-
 
     // Check for API key
     if (!apiKey) {
