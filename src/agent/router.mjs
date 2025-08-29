@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { searchPricing, getPriceEstimate, getDeliveryEstimate, formatPrice, formatDelivery } from '../data/pricing-loader.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,8 +76,17 @@ export class ConversationRouter {
       missingSlots: [],
       questions: [],
       systemPrompt: null,
-      playbookData: null
+      playbookData: null,
+      pricingInfo: null  // Add pricing information
     };
+
+    // Check for pricing/delivery queries
+    const pricingResults = searchPricing(text);
+    if (pricingResults.length > 0) {
+      result.pricingInfo = pricingResults;
+      // Add pricing context to the result
+      result.hasPricingQuery = true;
+    }
 
     // Check FAQ first
     const faqAnswer = this.findFAQAnswer(domain, text);

@@ -54,7 +54,8 @@ export function buildSystemPrompt({
   routingResult = null,
   userContext = null,
   model = 'gpt-4',
-  enableSmaichan = true
+  enableSmaichan = true,
+  pricingInfo = null  // Add pricing information parameter
 }) {
   
   // スマイちゃんモードの場合は人格を注入
@@ -138,6 +139,24 @@ ${slotsToAsk.map((slot, i) => `${i + 1}. ${slot.question || slot.name}`).join('\
 - 「楽しみにしててね✨」`;
     }
 
+    // Build pricing section if available
+    let pricingSection = '';
+    if (pricingInfo && pricingInfo.length > 0) {
+      pricingSection = `
+## 価格・納期情報（参考）
+${pricingInfo.map(info => {
+  if (info.type === 'pricing') {
+    return `【${info.service}】参考価格あり`;
+  } else if (info.type === 'delivery') {
+    return `【${info.service}】納期情報あり`;
+  }
+  return '';
+}).filter(Boolean).join('\n')}
+
+※価格を伝える時は「〜円くらいからできるよ〜」と概算で
+※正確な見積もりは「詳しく見積もり作るね！」`;
+    }
+
     // スマイちゃん用の完全なプロンプト
     const systemPrompt = `${SMAICHAN_PERSONA}
 
@@ -148,6 +167,7 @@ ${domainTone.example}
 
 ${smaichanGuardrails}
 ${slotSection}
+${pricingSection}
 
 ## 取得済み情報
 ${getFilledSlotsSection(routingResult, userContext)}
@@ -254,6 +274,24 @@ ${playbook?.displayName ? `専門分野: ${playbook.displayName}` : ''}`;
   // Build context section
   const contextSection = getFilledSlotsSection(routingResult, userContext);
 
+  // Build pricing section for traditional mode
+  let pricingSection = '';
+  if (pricingInfo && pricingInfo.length > 0) {
+    pricingSection = `
+## 価格・納期情報
+${pricingInfo.map(info => {
+  if (info.type === 'pricing') {
+    return `・${info.service}の価格情報を参照可能`;
+  } else if (info.type === 'delivery') {
+    return `・${info.service}の納期情報を参照可能`;
+  }
+  return '';
+}).filter(Boolean).join('\n')}
+
+※価格は「〜円程度となります」「〜円からご用意しています」と条件付きで提示
+※正確な金額は「詳細なお見積もりをご提案させていただきます」`;
+  }
+
   // Build response template
   const responseTemplate = `
 ## 回答テンプレート（参考）
@@ -266,6 +304,7 @@ ${playbook?.displayName ? `専門分野: ${playbook.displayName}` : ''}`;
   const systemPrompt = `${roleInstructions}
 ${coreGuardrails}
 ${slotSection}
+${pricingSection}
 ${contextSection}
 ${responseTemplate}
 

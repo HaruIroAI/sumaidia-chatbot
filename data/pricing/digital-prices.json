@@ -1,0 +1,170 @@
+{
+  "webDesign": {
+    "name": "Webサイト制作",
+    "types": {
+      "landingPage": {
+        "name": "ランディングページ（1ページ）",
+        "basic": {
+          "price": 150000,
+          "includes": ["デザイン", "コーディング", "スマホ対応", "お問い合わせフォーム"]
+        },
+        "standard": {
+          "price": 300000,
+          "includes": ["デザイン", "コーディング", "スマホ対応", "フォーム", "アニメーション", "SEO基本設定"]
+        },
+        "premium": {
+          "price": 500000,
+          "includes": ["オリジナルデザイン", "高度なアニメーション", "A/Bテスト設定", "解析ツール設置"]
+        }
+      },
+      "corporateSite": {
+        "name": "企業サイト",
+        "small": {
+          "pages": "5ページ程度",
+          "price": 300000,
+          "includes": ["トップ", "会社概要", "サービス", "お問い合わせ", "プライバシーポリシー"]
+        },
+        "medium": {
+          "pages": "10ページ程度",
+          "price": 600000,
+          "includes": ["基本ページ", "ブログ機能", "実績ページ", "採用ページ"]
+        },
+        "large": {
+          "pages": "20ページ以上",
+          "price": 1000000,
+          "description": "要件により変動"
+        }
+      },
+      "ecSite": {
+        "name": "ECサイト",
+        "startingPrice": 800000,
+        "description": "商品数・機能により変動"
+      }
+    },
+    "cms": {
+      "wordpress": "標準対応",
+      "wix": "+50000円",
+      "custom": "別途見積もり"
+    },
+    "maintenance": {
+      "basic": {
+        "monthly": 10000,
+        "includes": ["セキュリティ更新", "バックアップ"]
+      },
+      "standard": {
+        "monthly": 30000,
+        "includes": ["更新作業月2回まで", "アクセス解析レポート"]
+      },
+      "premium": {
+        "monthly": 50000,
+        "includes": ["更新作業無制限", "SEO対策", "広告運用サポート"]
+      }
+    },
+    "deliveryDays": {
+      "landingPage": "1ヶ月〜",
+      "corporateSite": "2〜3ヶ月",
+      "ecSite": "3〜6ヶ月"
+    }
+  },
+  "videoProduction": {
+    "name": "動画制作",
+    "types": {
+      "promotional": {
+        "name": "プロモーション動画",
+        "30seconds": {
+          "basic": 100000,
+          "standard": 200000,
+          "premium": 400000
+        },
+        "60seconds": {
+          "basic": 150000,
+          "standard": 300000,
+          "premium": 600000
+        },
+        "180seconds": {
+          "basic": 250000,
+          "standard": 500000,
+          "premium": 1000000
+        }
+      },
+      "interview": {
+        "name": "インタビュー動画",
+        "halfDay": 150000,
+        "fullDay": 250000,
+        "includes": ["撮影", "編集", "テロップ", "BGM"]
+      },
+      "animation": {
+        "name": "アニメーション動画",
+        "30seconds": 200000,
+        "60seconds": 350000,
+        "description": "イラスト制作込み"
+      }
+    },
+    "options": {
+      "ドローン撮影": "+100000円〜",
+      "ナレーション": "+30000円〜",
+      "多言語字幕": "+50000円〜"
+    },
+    "deliveryDays": {
+      "standard": "2〜4週間",
+      "express": "1週間（特急料金適用）"
+    }
+  },
+  "snsManagement": {
+    "name": "SNS運用代行",
+    "plans": {
+      "light": {
+        "monthly": 50000,
+        "posts": "週2回投稿",
+        "platforms": 1,
+        "includes": ["投稿作成", "ハッシュタグ設定"]
+      },
+      "standard": {
+        "monthly": 100000,
+        "posts": "週3〜4回投稿",
+        "platforms": 2,
+        "includes": ["投稿作成", "簡単な画像作成", "コメント対応", "月次レポート"]
+      },
+      "premium": {
+        "monthly": 200000,
+        "posts": "毎日投稿",
+        "platforms": 3,
+        "includes": ["戦略立案", "コンテンツ制作", "インフルエンサー連携", "詳細分析"]
+      }
+    },
+    "platforms": ["Instagram", "Twitter", "Facebook", "LINE", "TikTok"]
+  },
+  "design": {
+    "logo": {
+      "name": "ロゴデザイン",
+      "basic": {
+        "price": 50000,
+        "proposals": 3,
+        "revisions": 2
+      },
+      "standard": {
+        "price": 100000,
+        "proposals": 5,
+        "revisions": 3,
+        "includes": ["カラーバリエーション", "使用ガイドライン"]
+      },
+      "premium": {
+        "price": 200000,
+        "proposals": "無制限",
+        "revisions": "無制限",
+        "includes": ["ブランドガイドライン", "名刺デザイン", "封筒デザイン"]
+      }
+    },
+    "branding": {
+      "name": "ブランディングパッケージ",
+      "startingPrice": 500000,
+      "includes": ["ロゴ", "カラーパレット", "フォント選定", "ブランドガイドライン", "基本ツールデザイン"]
+    }
+  },
+  "notes": {
+    "消費税": "すべて税別価格",
+    "著作権": "納品後お客様に帰属",
+    "修正": "各プランの回数を超える場合は別途",
+    "キャンセル": "着手後のキャンセルは進捗に応じて料金発生"
+  }
+}

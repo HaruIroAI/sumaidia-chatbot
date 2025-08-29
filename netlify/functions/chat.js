@@ -120,6 +120,9 @@ exports.handler = async function handler(event, context) {
   const debug = url.searchParams.get('debug') === '1';
   const selftest = url.pathname?.includes('selftest');
   
+  // Smaichan mode control (default: enabled, can be disabled via env var)
+  const enableSmaichan = process.env.DISABLE_SMAICHAN !== 'true';
+  
   // Initialize common headers with x-domain always set
   const headers = new Headers({
     'content-type': 'application/json',
@@ -128,6 +131,7 @@ exports.handler = async function handler(event, context) {
     'x-session-id': sessionId,
     'x-domain': 'general',  // Default domain
     'x-backend': 'openai',
+    'x-smaichan': enableSmaichan ? 'enabled' : 'disabled',
     'x-deploy-id': process.env.DEPLOY_ID || '',
     'x-commit': process.env.COMMIT_REF || ''
   });
@@ -304,7 +308,7 @@ else if (isRaw) {
         // Get session state for filled slots
         const sessionState = router.getSession(sessionId, domain);
         
-        // Build system prompt
+        // Build system prompt with Smaichan personality enabled
         systemPrompt = buildSystemPrompt({
           domain: domain,
           playbook: routingResult.playbookData,
@@ -320,7 +324,9 @@ else if (isRaw) {
             previousMessages: messages.slice(0, -1),
             session: sessionState
           },
-          model: model
+          model: model,
+          enableSmaichan: enableSmaichan,  // Use environment-controlled setting
+          pricingInfo: routingResult.pricingInfo  // Pass pricing information
         });
 
         // Build input for Responses API
