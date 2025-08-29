@@ -59,7 +59,8 @@ export function buildSystemPrompt({
   enableSmaichan = true,
   pricingInfo = null,  // Add pricing information parameter
   quote = null,  // Add quote calculation result
-  userMessage = ''  // Add user message for response length analysis
+  userMessage = '',  // Add user message for response length analysis
+  sessionMemory = null  // Add session memory for context
 }) {
   
   // Analyze response length based on user message
@@ -203,6 +204,11 @@ ${userContext?.previousMessages?.length > 0 ?
 最新のユーザーメッセージ: "${userMessage}"
 ${userContext.previousMessages.length === 0 ? '※初回の会話です' : '※継続中の会話です'}` : 
   '※初回の会話です'}
+
+${sessionMemory ? `
+## 記憶している会話内容（絶対に忘れないこと）
+${sessionMemory}
+` : ''}
 
 ## 取得済み情報
 ${getFilledSlotsSection(routingResult, userContext)}

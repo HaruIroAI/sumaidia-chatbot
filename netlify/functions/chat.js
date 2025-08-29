@@ -420,6 +420,21 @@ else if (isRaw) {
         // Get session state for filled slots
         const sessionState = router.getSession(sessionId, domain);
         
+        // Get conversation memory
+        let sessionMemory = null;
+        try {
+          const memoryMod = await import(esmUrlFromSrc('utils', 'conversation-memory.mjs'));
+          const { updateSession, buildContextSummary } = memoryMod;
+          
+          // Update session with current message
+          updateSession(sessionId, userText, 'user');
+          
+          // Build context summary
+          sessionMemory = buildContextSummary(sessionId);
+        } catch (memoryError) {
+          console.error('Memory module error:', memoryError);
+        }
+        
         // Build system prompt with Smaichan personality enabled
         systemPrompt = buildSystemPrompt({
           domain: domain,
@@ -440,7 +455,8 @@ else if (isRaw) {
           enableSmaichan: enableSmaichan,  // Use environment-controlled setting
           pricingInfo: routingResult.pricingInfo,  // Pass pricing information
           quote: routingResult.quote,  // Pass quote calculation
-          userMessage: userText  // Pass user message for response length analysis
+          userMessage: userText,  // Pass user message for response length analysis
+          sessionMemory: sessionMemory  // Pass conversation memory
         });
 
         // Build input for Responses API
