@@ -446,11 +446,9 @@ let text = extractText(data);
 
 // max_output_tokens が小さすぎて未完了 → 一度だけ増やして再試行
 if (!text && (data?.status === 'incomplete' || data?.incomplete_details?.reason === 'max_output_tokens')) {
-  - const current = payload.max_output_tokens || MIN_TOKENS;
-- payload.max_output_tokens = Math.max(2048, Math.ceil(current * 2));  // 下限 2048、倍増
-+ const current = payload.max_output_tokens || MIN_TOKENS;
-+ payload.max_output_tokens = Math.max(2048, Math.ceil(current * 2));  // 2回目は最低2048
-+ sanitizeResponsesPayload(payload);
+  const current = payload.max_output_tokens || MIN_TOKENS;
+  payload.max_output_tokens = Math.max(2048, Math.ceil(current * 2));  // 2回目は最低2048
+  sanitizeResponsesPayload(payload);
 
   const res2 = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -458,7 +456,38 @@ if (!text && (data?.status === 'incomplete' || data?.incomplete_details?.reason 
     body: JSON.stringify(payload)
   });
   const data2 = await res2.json();
-  if (res2.ok) text = extractText(data2);
+  if (res2.ok) {
+    text = extractText(data2);
+    // debug で usage などを最新にしたいので、data も差し替えておく
+    data = data2;
+  }
+}
+
+// ▼ ここを empty_output より前に！ text が空でも必ず 200 を返す
+if (debug) {
+  const payload_keys = Object.keys(payload);
+  return {
+    statusCode: 200,
+    headers: Object.fromEntries(headers),
+    body: JSON.stringify({
+      ok: true,
+      payload: {
+        model: payload.model,
+        input_type: Array.isArray(payload.input) ? 'array' : typeof payload.input,
+        max_output_tokens: payload.max_output_tokens,
+        payload_keys
+      },
+      openai: {
+        status: data?.status || 'unknown',
+        incomplete_details: data?.incomplete_details || null,
+        usage: data?.usage || null
+      },
+      response: {
+        text: text ?? '',
+        domain: headers.get('x-domain')
+      }
+    })
+  };
 }
 
 // Handle empty output（それでも空ならエラー返し）
@@ -475,35 +504,6 @@ if (!text) {
         usage: data?.usage || null,
         status: data?.status,
         incomplete: data?.incomplete_details || null
-      }
-    })
-  };
-}
-    
-    // Debug mode: return diagnostic info
-if (debug) {
-  // ペイロード内のキー一覧を shallow に収集（深いのはサニタイズで守れている前提）
-  const payload_keys = Object.keys(payload);
-
-  return {
-    statusCode: 200,
-    headers: Object.fromEntries(headers),
-    body: JSON.stringify({
-      ok: true,
-      payload: {
-        model: payload.model,
-        input_type: Array.isArray(payload.input) ? 'array' : typeof payload.input,
-        max_output_tokens: payload.max_output_tokens,
-        payload_keys // ← これが見たい
-      },
-      openai: {
-        status: data?.status || 'unknown',
-        incomplete_details: data?.incomplete_details || null,
-        usage: data?.usage || null
-      },
-      response: {
-        text: text,
-        domain: headers.get('x-domain')
       }
     })
   };
