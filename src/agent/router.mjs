@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { searchPricing, getPriceEstimate, getDeliveryEstimate, formatPrice, formatDelivery } from '../data/pricing-loader.mjs';
+import quoteCalculator from '../services/quote-calculator.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -77,7 +78,8 @@ export class ConversationRouter {
       questions: [],
       systemPrompt: null,
       playbookData: null,
-      pricingInfo: null  // Add pricing information
+      pricingInfo: null,  // Add pricing information
+      quote: null  // Add quote calculation result
     };
 
     // Check for pricing/delivery queries
@@ -86,6 +88,16 @@ export class ConversationRouter {
       result.pricingInfo = pricingResults;
       // Add pricing context to the result
       result.hasPricingQuery = true;
+      
+      // Try to calculate quote if specific service is detected
+      const entities = quoteCalculator.extractQuoteEntities(text);
+      if (domain === 'printing' && text.match(/名刺|business\s*card/i)) {
+        result.quote = quoteCalculator.calculateBusinessCards(entities);
+      } else if (domain === 'printing' && text.match(/チラシ|フライヤー|flyer/i)) {
+        result.quote = quoteCalculator.calculateFlyers(entities);
+      } else if (domain === 'web' && text.match(/サイト|ホームページ|web/i)) {
+        result.quote = quoteCalculator.calculateWebDesign(entities);
+      }
     }
 
     // Check FAQ first

@@ -55,7 +55,8 @@ export function buildSystemPrompt({
   userContext = null,
   model = 'gpt-4',
   enableSmaichan = true,
-  pricingInfo = null  // Add pricing information parameter
+  pricingInfo = null,  // Add pricing information parameter
+  quote = null  // Add quote calculation result
 }) {
   
   // スマイちゃんモードの場合は人格を注入
@@ -157,6 +158,19 @@ ${pricingInfo.map(info => {
 ※正確な見積もりは「詳しく見積もり作るね！」`;
     }
 
+    // Build quote section if available
+    let quoteSection = '';
+    if (quote && !quote.error) {
+      quoteSection = `
+## 見積もり計算結果
+【${quote.service}】
+合計: ${quote.total?.toLocaleString()}円（税込）
+納期: ${quote.delivery?.days || quote.delivery?.duration}${quote.delivery?.unit || ''}
+
+スマイちゃんメッセージ例:
+「${quote.smaichanMessage}」`;
+    }
+
     // スマイちゃん用の完全なプロンプト
     const systemPrompt = `${SMAICHAN_PERSONA}
 
@@ -168,6 +182,7 @@ ${domainTone.example}
 ${smaichanGuardrails}
 ${slotSection}
 ${pricingSection}
+${quoteSection}
 
 ## 取得済み情報
 ${getFilledSlotsSection(routingResult, userContext)}
@@ -292,6 +307,17 @@ ${pricingInfo.map(info => {
 ※正確な金額は「詳細なお見積もりをご提案させていただきます」`;
   }
 
+  // Build quote section for traditional mode
+  let quoteSection = '';
+  if (quote && !quote.error) {
+    quoteSection = `
+## 概算見積もり
+サービス: ${quote.service}
+金額: ${quote.total?.toLocaleString()}円（税込）
+納期: ${quote.delivery?.days || quote.delivery?.duration}${quote.delivery?.unit || ''}
+※正式なお見積もりは仕様確定後にご提案させていただきます`;
+  }
+
   // Build response template
   const responseTemplate = `
 ## 回答テンプレート（参考）
@@ -305,6 +331,7 @@ ${pricingInfo.map(info => {
 ${coreGuardrails}
 ${slotSection}
 ${pricingSection}
+${quoteSection}
 ${contextSection}
 ${responseTemplate}
 
