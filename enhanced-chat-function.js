@@ -132,10 +132,7 @@ ${JSON.stringify(relevantInfo, null, 2)}
         
         const body = {
             messages: messages,
-            temperature: 0.75,
-            max_tokens: 300, // 少し増やす
-            presence_penalty: 0.3,
-            frequency_penalty: 0.2
+            max_tokens: 300 // 少し増やす
         };
         
         if (isNetlify) {
