@@ -325,7 +325,8 @@ else if (isRaw) {
             session: sessionState
           },
           model: model,
-          enableSmaichan: enableSmaichan  // Use environment-controlled setting
+          enableSmaichan: enableSmaichan,  // Use environment-controlled setting
+          pricingInfo: routingResult.pricingInfo  // Pass pricing information
         });
 
         // Build input for Responses API

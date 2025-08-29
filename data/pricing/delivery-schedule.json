@@ -1,0 +1,181 @@
+{
+  "printing": {
+    "名刺": {
+      "standard": {
+        "workDays": 5,
+        "unit": "営業日",
+        "process": ["データ確認", "印刷", "断裁", "梱包", "発送"]
+      },
+      "express": {
+        "workDays": 2,
+        "unit": "営業日",
+        "surcharge": "+50%",
+        "conditions": "16時までの入稿"
+      }
+    },
+    "チラシ・フライヤー": {
+      "standard": {
+        "workDays": 7,
+        "unit": "営業日",
+        "factors": ["数量", "仕様", "加工の有無"]
+      },
+      "express": {
+        "workDays": 3,
+        "unit": "営業日",
+        "surcharge": "+50%"
+      }
+    },
+    "カタログ・パンフレット": {
+      "standard": {
+        "workDays": 10,
+        "unit": "営業日",
+        "factors": ["ページ数", "製本方法", "部数"]
+      },
+      "express": {
+        "workDays": 5,
+        "unit": "営業日",
+        "surcharge": "+100%",
+        "conditions": "事前相談必須"
+      }
+    },
+    "ポスター": {
+      "standard": {
+        "workDays": 5,
+        "unit": "営業日"
+      },
+      "express": {
+        "workDays": 2,
+        "unit": "営業日",
+        "surcharge": "+50%"
+      },
+      "largeFormat": {
+        "additionalDays": "+2〜3日",
+        "description": "A0サイズ以上"
+      }
+    },
+    "特殊印刷": {
+      "封筒": {
+        "workDays": 7,
+        "unit": "営業日"
+      },
+      "ステッカー": {
+        "workDays": 7,
+        "unit": "営業日",
+        "factors": ["形状", "素材"]
+      },
+      "のぼり・横断幕": {
+        "workDays": 10,
+        "unit": "営業日"
+      },
+      "箔押し・型抜き": {
+        "additionalDays": "+3〜5日",
+        "description": "特殊加工"
+      }
+    }
+  },
+  "digital": {
+    "Webサイト": {
+      "landingPage": {
+        "duration": "1ヶ月〜",
+        "phases": [
+          {"name": "ヒアリング・企画", "days": "3〜5日"},
+          {"name": "デザイン制作", "days": "1〜2週間"},
+          {"name": "コーディング", "days": "1週間"},
+          {"name": "テスト・修正", "days": "3〜5日"}
+        ]
+      },
+      "corporateSite": {
+        "small": {
+          "duration": "1.5〜2ヶ月",
+          "pages": "5ページ程度"
+        },
+        "medium": {
+          "duration": "2〜3ヶ月",
+          "pages": "10ページ程度"
+        },
+        "large": {
+          "duration": "3〜6ヶ月",
+          "pages": "20ページ以上"
+        }
+      },
+      "ecSite": {
+        "duration": "3〜6ヶ月",
+        "factors": ["商品点数", "決済システム", "在庫管理連携"]
+      }
+    },
+    "動画制作": {
+      "promotional": {
+        "duration": "2〜4週間",
+        "phases": [
+          {"name": "企画・構成", "days": "3〜5日"},
+          {"name": "撮影", "days": "1〜3日"},
+          {"name": "編集", "days": "1〜2週間"},
+          {"name": "修正・納品", "days": "3〜5日"}
+        ]
+      },
+      "animation": {
+        "duration": "3〜6週間",
+        "description": "複雑さによる"
+      }
+    },
+    "デザイン": {
+      "logo": {
+        "duration": "2〜3週間",
+        "phases": [
+          {"name": "ヒアリング", "days": "1日"},
+          {"name": "初回提案", "days": "1週間"},
+          {"name": "修正・決定", "days": "1週間"}
+        ]
+      },
+      "branding": {
+        "duration": "1〜2ヶ月",
+        "description": "プロジェクト規模による"
+      }
+    }
+  },
+  "generalRules": {
+    "営業日": {
+      "definition": "土日祝日を除く平日",
+      "hours": "8:30〜18:00",
+      "土曜": "隔週営業"
+    },
+    "入稿締切": {
+      "standard": "15時まで当日カウント",
+      "afterHours": "翌営業日扱い"
+    },
+    "繁忙期": {
+      "periods": ["11月〜12月", "2月〜3月"],
+      "impact": "通常納期+2〜3日",
+      "recommendation": "早めのご相談を推奨"
+    },
+    "配送": {
+      "滋賀県内": "最短翌日",
+      "関西圏": "1〜2日",
+      "関東": "2〜3日",
+      "その他": "2〜4日",
+      "離島": "別途確認"
+    },
+    "修正対応": {
+      "minor": "1〜2営業日",
+      "major": "3〜5営業日",
+      "definition": "修正内容により変動"
+    }
+  },
+  "expressService": {
+    "availability": "事前相談必須",
+    "surcharge": {
+      "printing": "+50〜100%",
+      "digital": "+30〜50%"
+    },
+    "conditions": [
+      "仕様の早期確定",
+      "迅速な校正確認",
+      "支払い条件の事前合意"
+    ],
+    "limitations": [
+      "特殊加工は対応不可の場合あり",
+      "大量発注は要相談",
+      "品質保証の一部制限"
+    ]
+  }
+}
