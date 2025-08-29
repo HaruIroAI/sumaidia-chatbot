@@ -2,6 +2,8 @@ const { extractText } = require("./_extractText.js");
 const { join } = require('path');
 const { pathToFileURL } = require('url');
 
+// Quick response will be loaded dynamically when needed
+
 // === add: forbidden key sanitizer =========================
 const FORBIDDEN_KEYS = new Set([
   'temperature', 'top_p', 'presence_penalty', 'frequency_penalty',
@@ -217,6 +219,43 @@ else if (isRaw) {
   
     // === NORMAL MODE - requires ESM modules ===
     else if (body.messages) {
+      // Extract user message for quick response check
+      const messages = body.messages || [];
+      const userMessages = messages.filter(m => m.role === 'user');
+      const latestUserMessage = userMessages[userMessages.length - 1];
+      const userMessageText = latestUserMessage?.content || '';
+      
+      // Check for quick response first (skip AI for simple greetings)
+      try {
+        const quickResponseMod = await import(esmUrlFromSrc('utils', 'quick-response.mjs'));
+        const { getQuickResponse } = quickResponseMod;
+        
+        const quickResponse = getQuickResponse(userMessageText);
+        if (quickResponse && quickResponse.skipAI) {
+          // Return instant response without AI
+          headers.set('x-quick-response', 'true');
+          headers.set('x-response-time', '0');
+          
+          return {
+            statusCode: 200,
+            headers: Object.fromEntries(headers),
+            body: JSON.stringify({
+              choices: [{
+                message: {
+                  role: 'assistant',
+                  content: quickResponse.message
+                },
+                finish_reason: 'stop'
+              }],
+              usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+            })
+          };
+        }
+      } catch (quickResponseError) {
+        // If quick response fails, continue with normal flow
+        console.error('Quick response error:', quickResponseError);
+      }
+      
       // Load ESM modules only when absolutely needed
       let IntentClassifier, ConversationRouter, buildSystemPrompt, buildConversationPrompt;
       
@@ -253,10 +292,8 @@ else if (isRaw) {
       const classifier = new IntentClassifier();
       const router = new ConversationRouter();
       
-      const messages = body.messages || [];
-      const userMessages = messages.filter(m => m.role === 'user');
-      const latestUserMessage = userMessages[userMessages.length - 1];
-      userText = latestUserMessage?.content || '';
+      // Reuse already extracted message data
+      userText = userMessageText;
       
       if (latestUserMessage && latestUserMessage.content) {
         // Classify intent
