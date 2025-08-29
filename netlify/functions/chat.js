@@ -353,7 +353,7 @@ else if (isRaw) {
 // === OPENAI API CALL (common path) ===
 
 // ▼ここから置き換え
-const MIN_TOKENS = 1024;                       // 下限を 1024 に引き上げ
+const MIN_TOKENS = 2048;                       // 下限を 2048 に引き上げ
 const wanted = Number(body?.max_output_tokens);
 
 const payload = {
