@@ -1,4 +1,35 @@
 const { extractText } = require("./_extractText.js");
+const { join } = require('path');
+const { pathToFileURL } = require('url');
+
+// === add: forbidden key sanitizer =========================
+const FORBIDDEN_KEYS = new Set([
+  'temperature', 'top_p', 'presence_penalty', 'frequency_penalty',
+  'response_format', 'logit_bias', 'seed'
+]);
+
+function deepDeleteKeys(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) { obj.forEach(deepDeleteKeys); return obj; }
+  for (const k of Object.keys(obj)) {
+    if (FORBIDDEN_KEYS.has(k)) delete obj[k];
+    else deepDeleteKeys(obj[k]);
+  }
+  return obj;
+}
+
+function sanitizeResponsesPayload(p) {
+  return deepDeleteKeys(p);
+}
+
+// ---- ESM の絶対URL生成（Lambda/ローカル両対応）-----------------
+function murl(...segments) {
+  const root = process.env.LAMBDA_TASK_ROOT || __dirname; // Lambda でも OK
+  const abs = join(root, ...segments);
+  return pathToFileURL(abs).href; // import() に渡せる file:// URL
+}
+
+// ==========================================================
 
 /**
  * Cached ESM module loaders with lazy loading
@@ -7,21 +38,24 @@ let _intentMod, _routerMod, _promptMod;
 
 async function loadIntent() {
   if (!_intentMod) {
-    _intentMod = await import('../../src/intent/intent-classifier.mjs');
+    const url = murl('..','..','src','intent','intent-classifier.mjs');
+    _intentMod = await import(url);
   }
   return _intentMod;
 }
 
 async function loadRouter() {
   if (!_routerMod) {
-    _routerMod = await import('../../src/agent/router.mjs');
+    const url = murl('..','..','src','agent','router.mjs');
+    _routerMod = await import(url);
   }
   return _routerMod;
 }
 
 async function loadPrompt() {
   if (!_promptMod) {
-    _promptMod = await import('../../src/prompt/build-system-prompt.mjs');
+    const url = murl('..','..','src','prompt','build-system-prompt.mjs');
+    _promptMod = await import(url);
   }
   return _promptMod;
 }
@@ -123,19 +157,47 @@ exports.handler = async function handler(event, context) {
       };
     }
 
-    // Handle bypass mode (skip router, no ESM loading)
-    if (bypass) {
-      headers.set('x-domain', 'bypass');
-      headers.set('x-backend', 'openai-bypass');
-      
-      // Just convert messages to Responses API format
-      input = toResponsesInputFromMessages(body.messages || []);
-    } 
-    // Handle raw mode (no routing, direct input)
-    else if (isRaw) {
-      headers.set('x-domain', 'raw');
-      input = body.input;
-    }
+// Handle bypass mode (skip router, no ESM loading)
+if (bypass) {
+  headers.set('x-domain', 'bypass');
+  headers.set('x-backend', 'openai-bypass');
+
+  // messages → Responses API 形式へ
+  input = toResponsesInputFromMessages(body.messages || []);
+
+  // 入力ガード：最低1メッセージ必要
+  if (!Array.isArray(input) || input.length === 0) {
+    headers.set('x-error','bad_bypass_input');
+    return {
+      statusCode: 400,
+      headers: Object.fromEntries(headers),
+      body: JSON.stringify({
+        error: 'bad_bypass_input',
+        hint: 'body.messages must contain at least one message'
+      })
+    };
+  }
+}
+
+// Handle raw mode (no routing, direct input)
+else if (isRaw) {
+  headers.set('x-domain', 'raw');
+  input = body.input;
+
+  // 入力ガード：配列で最低1件必要
+  if (!Array.isArray(input) || input.length === 0) {
+    headers.set('x-error','bad_raw_input');
+    return {
+      statusCode: 400,
+      headers: Object.fromEntries(headers),
+      body: JSON.stringify({
+        error: 'bad_raw_input',
+        hint: 'body.input must be a non-empty array'
+      })
+    };
+  }
+}
+  
     // === NORMAL MODE - requires ESM modules ===
     else if (body.messages) {
       // Load ESM modules only when absolutely needed
@@ -278,14 +340,19 @@ exports.handler = async function handler(event, context) {
     // === OPENAI API CALL (common path) ===
     
     // Create unified OpenAI payload (Responses API)
-    const payload = {
-      model: model,
-      input: input,
-      text: { format: { type: 'text' }, verbosity: 'low' },
-      reasoning: { effort: 'low' },
-      temperature: 0.3,
-      max_output_tokens: Math.max(256, Number(body?.max_output_tokens || 500))
-    };
+// === AFTER ===
+const wanted = Number(body?.max_output_tokens);
+const payload = {
+  model: model,
+  input: input,
+  text: { format: { type: 'text' }, verbosity: 'low' },
+  reasoning: { effort: 'low' },
+  // 呼び出し側が指定していればそれを使う。無ければ控えめに 64
+  max_output_tokens: Number.isFinite(wanted) && wanted > 0 ? wanted : 64
+};
+
+// ここで最終サニタイズ（将来どこかで混入しても守る）
+sanitizeResponsesPayload(payload);
 
     // Check for API key
     if (!apiKey) {
@@ -350,53 +417,70 @@ exports.handler = async function handler(event, context) {
       };
     }
 
-    // Extract text
-    const text = extractText(data);
+// Extract text（最初の試行）
+let text = extractText(data);
 
-    // Handle empty output
-    if (!text) {
-      headers.set('x-error', 'empty_output');
-      return {
-        statusCode: 502,
-        headers: Object.fromEntries(headers),
-        body: JSON.stringify({
-          error: 'empty_output',
-          hints: { 
-            domain: headers.get('x-domain'),
-            prompt_len: JSON.stringify(payload.input).length,
-            usage: data?.usage || null,
-            status: data?.status,
-            incomplete: data?.incomplete_details || null
-          }
-        })
-      };
-    }
+// max_output_tokens が小さすぎて未完了 → 一度だけ増やして再試行
+if (!text && (data?.status === 'incomplete' || data?.incomplete_details?.reason === 'max_output_tokens')) {
+  payload.max_output_tokens = Math.max(128, (payload.max_output_tokens || 64) * 2);
+  sanitizeResponsesPayload(payload);
+
+  const res2 = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { 'content-type':'application/json', 'authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify(payload)
+  });
+  const data2 = await res2.json();
+  if (res2.ok) text = extractText(data2);
+}
+
+// Handle empty output（それでも空ならエラー返し）
+if (!text) {
+  headers.set('x-error', 'empty_output');
+  return {
+    statusCode: 502,
+    headers: Object.fromEntries(headers),
+    body: JSON.stringify({
+      error: 'empty_output',
+      hints: { 
+        domain: headers.get('x-domain'),
+        prompt_len: JSON.stringify(payload.input).length,
+        usage: data?.usage || null,
+        status: data?.status,
+        incomplete: data?.incomplete_details || null
+      }
+    })
+  };
+}
     
     // Debug mode: return diagnostic info
-    if (debug) {
-      return {
-        statusCode: 200,
-        headers: Object.fromEntries(headers),
-        body: JSON.stringify({
-          ok: true,
-          payload: {
-            model: payload.model,
-            input_type: Array.isArray(payload.input) ? 'array' : typeof payload.input,
-            max_output_tokens: payload.max_output_tokens
-          },
-          openai: {
-            status: data?.status || 'unknown',
-            incomplete_details: data?.incomplete_details || null,
-            usage: data?.usage || null,
-            first_item_type: data?.output?.item?.[0]?.type || data?.choices?.[0]?.message ? 'message' : 'unknown'
-          },
-          response: {
-            text: text,
-            domain: headers.get('x-domain')
-          }
-        })
-      };
-    }
+if (debug) {
+  // ペイロード内のキー一覧を shallow に収集（深いのはサニタイズで守れている前提）
+  const payload_keys = Object.keys(payload);
+
+  return {
+    statusCode: 200,
+    headers: Object.fromEntries(headers),
+    body: JSON.stringify({
+      ok: true,
+      payload: {
+        model: payload.model,
+        input_type: Array.isArray(payload.input) ? 'array' : typeof payload.input,
+        max_output_tokens: payload.max_output_tokens,
+        payload_keys // ← これが見たい
+      },
+      openai: {
+        status: data?.status || 'unknown',
+        incomplete_details: data?.incomplete_details || null,
+        usage: data?.usage || null
+      },
+      response: {
+        text: text,
+        domain: headers.get('x-domain')
+      }
+    })
+  };
+}
 
     // Extract emotion tag if present
     const emoMatch = text.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i);
