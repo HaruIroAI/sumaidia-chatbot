@@ -108,7 +108,7 @@ async function withRetry(fn, { tries = 3, base = 250 } = {}) {
 exports.handler = async function handler(event, context) {
   // Extract common variables upfront
   const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07';
+  const model = process.env.OPENAI_MODEL || 'gpt-5-mini';
   const sessionId = event.headers?.['x-session-id'] || 
                    event.headers?.['X-Session-Id'] || 
                    `session-${Date.now()}`;
@@ -135,7 +135,7 @@ exports.handler = async function handler(event, context) {
     // --- CORS preflight (OPTIONS) early return ---
   if (event.httpMethod === 'OPTIONS') {
     headers.set('access-control-allow-origin', '*');
-    headers.set('access-control-allow-headers', 'Content-Type, X-Session-Id');
+    headers.set('access-control-allow-headers', 'Content-Type, X-Session-Id, Authorization');
     headers.set('access-control-allow-methods', 'GET, POST, OPTIONS');
     return {
       statusCode: 200,
@@ -353,7 +353,7 @@ else if (isRaw) {
 // === OPENAI API CALL (common path) ===
 
 // ▼ここから置き換え
-const MIN_TOKENS = 2048;                       // 下限を 2048 に引き上げ
+const MIN_TOKENS = 1024;                       // 下限を 1024 に引き上げ
 const wanted = Number(body?.max_output_tokens);
 
 const payload = {
@@ -373,6 +373,10 @@ if (isRaw) {
 // 最終サニタイズ（禁止キー除去）
 sanitizeResponsesPayload(payload);
 // ▲ここまで置き換え
+// payload を作った直後あたりに追加
+if (!isRaw && 'reasoning' in payload) {
+  delete payload.reasoning;          // 通常チャットでは推論モードを完全に外す
+}
 
     // Check for API key
     if (!apiKey) {
@@ -442,9 +446,11 @@ let text = extractText(data);
 
 // max_output_tokens が小さすぎて未完了 → 一度だけ増やして再試行
 if (!text && (data?.status === 'incomplete' || data?.incomplete_details?.reason === 'max_output_tokens')) {
-  const current = payload.max_output_tokens || MIN_TOKENS;
-  payload.max_output_tokens = Math.max(2048, Math.ceil(current * 2));  // 下限 2048、倍増
-  sanitizeResponsesPayload(payload);
+  - const current = payload.max_output_tokens || MIN_TOKENS;
+- payload.max_output_tokens = Math.max(2048, Math.ceil(current * 2));  // 下限 2048、倍増
++ const current = payload.max_output_tokens || MIN_TOKENS;
++ payload.max_output_tokens = Math.max(2048, Math.ceil(current * 2));  // 2回目は最低2048
++ sanitizeResponsesPayload(payload);
 
   const res2 = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
