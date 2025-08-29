@@ -1,30 +1,49 @@
 const { extractText } = require("./_extractText.js");
+const path = require('path');
+const { join } = path;
+const { pathToFileURL } = require('url');
 
-/**
- * Cached ESM module loaders with lazy loading
- */
+// --- sanitize: OpenAI Responses API に非対応のキーを根こそぎ除去 ---
+function deepDeleteKeys(obj, keys = []) {
+  if (!obj || typeof obj !== 'object') return obj;
+  for (const k of Object.keys(obj)) {
+    if (keys.includes(k)) {
+      delete obj[k];
+    } else {
+      deepDeleteKeys(obj[k], keys);
+    }
+  }
+  return obj;
+}
+
+// Responses API へ投げる最終 payload をここで確定させる
+function sanitizeResponsesPayload(payload) {
+  // 代表的な非対応・問題児キーを網羅削除
+  const BAN = [
+    'temperature',
+    'top_p',
+    'frequency_penalty',
+    'presence_penalty',
+    'stop',
+    'seed',
+    'response_format' // ← Responses API では text.format に移行
+  ];
+  // ネスト側（text.temperature 等）もケア
+  return deepDeleteKeys(structuredClone(payload), BAN);
+}
+
+// ESM 動的 import を安定化（CommonJS からの import）
+const ROOT = process.env.LAMBDA_TASK_ROOT || process.cwd();
+async function loadEsm(relFromRoot) {
+  const full = join(ROOT, relFromRoot);
+  return import(pathToFileURL(full).href);
+}
+
+// 使い方例：
 let _intentMod, _routerMod, _promptMod;
-
-async function loadIntent() {
-  if (!_intentMod) {
-    _intentMod = await import('../../src/intent/intent-classifier.mjs');
-  }
-  return _intentMod;
-}
-
-async function loadRouter() {
-  if (!_routerMod) {
-    _routerMod = await import('../../src/agent/router.mjs');
-  }
-  return _routerMod;
-}
-
-async function loadPrompt() {
-  if (!_promptMod) {
-    _promptMod = await import('../../src/prompt/build-system-prompt.mjs');
-  }
-  return _promptMod;
-}
+async function loadIntent() { return _intentMod ??= await loadEsm('src/intent/intent-classifier.mjs'); }
+async function loadRouter() { return _routerMod ??= await loadEsm('src/agent/router.mjs'); }
+async function loadPrompt() { return _promptMod ??= await loadEsm('src/prompt/build-system-prompt.mjs'); }
 
 /**
  * Convert messages array to Responses API input format
@@ -134,7 +153,8 @@ exports.handler = async function handler(event, context) {
     // Handle raw mode (no routing, direct input)
     else if (isRaw) {
       headers.set('x-domain', 'raw');
-      input = body.input;
+      // raw=1 でもサニタイズを適用（重要）
+      input = body.input || [];
     }
     // === NORMAL MODE - requires ESM modules ===
     else if (body.messages) {
@@ -277,15 +297,14 @@ exports.handler = async function handler(event, context) {
 
     // === OPENAI API CALL (common path) ===
     
-    // Create unified OpenAI payload (Responses API)
-    const payload = {
+    // Create unified OpenAI payload (Responses API) - 絶対に temperature を書き足さない
+    const payload = sanitizeResponsesPayload({
       model: model,
       input: input,
+      max_output_tokens: Math.max(16, Number(body?.max_output_tokens || 512)),
       text: { format: { type: 'text' }, verbosity: 'low' },
-      reasoning: { effort: 'low' },
-      temperature: 0.3,
-      max_output_tokens: Math.max(256, Number(body?.max_output_tokens || 500))
-    };
+      reasoning: { effort: 'low' }
+    });
 
     // Check for API key
     if (!apiKey) {
@@ -379,6 +398,9 @@ exports.handler = async function handler(event, context) {
         headers: Object.fromEntries(headers),
         body: JSON.stringify({
           ok: true,
+          debug: {
+            payload_keys: Object.keys(payload)  // temperature が含まれないことを見える化
+          },
           payload: {
             model: payload.model,
             input_type: Array.isArray(payload.input) ? 'array' : typeof payload.input,
@@ -393,7 +415,14 @@ exports.handler = async function handler(event, context) {
           response: {
             text: text,
             domain: headers.get('x-domain')
-          }
+          },
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: text
+            },
+            finish_reason: 'stop'
+          }]
         })
       };
     }

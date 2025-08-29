@@ -1,28 +1,32 @@
-export async function handler(event) {
+const { extractText } = require('./_extractText.js');
+
+exports.handler = async function handler(event) {
   try {
     // いま実行中のオリジン（Deploy Preview / 本番どちらでも OK）
-    const origin = new URL(event.rawUrl).origin;
-
-    // /chat?raw=1 を同一オリジンで叩く（本番と同一パイプライン）
-    const payload = {
-      input: [
-        { role: 'system', content: [{ type: 'input_text', text: '「pong」と1語だけ返す' }] },
-        { role: 'user',   content: [{ type: 'input_text', text: 'ping' }] }
-      ],
-      max_output_tokens: 16
-    };
-
-    const res = await fetch(`${origin}/.netlify/functions/chat?raw=1`, {
+    const origin = new URL(event.rawUrl || event.url || 'http://localhost').origin;
+    const u = new URL(event.rawUrl || event.url || 'http://localhost');
+    const isDebug = u.searchParams.get('debug') === '1';
+    
+    // /chat?raw=1 を同一オリジンで叩く（直接 OpenAI を叩かず）
+    const debugParam = isDebug ? '&debug=1' : '';
+    const res = await fetch(`${origin}/.netlify/functions/chat?raw=1${debugParam}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        input: [
+          { role:'system', content:[{ type:'input_text', text:'「pong」と1語だけ返す' }] },
+          { role:'user',   content:[{ type:'input_text', text:'ping' }] }
+        ],
+        max_output_tokens: 16
+      })
     });
 
     const model = res.headers.get('x-model') || process.env.OPENAI_MODEL || 'gpt-5-mini';
     const data  = await res.json().catch(() => ({}));
 
-    const text = data?.choices?.[0]?.message?.content?.trim() || '';
-    const ok   = text === 'pong';
+    // extractText() で本文を取り出し
+    const text = extractText(data)?.trim() || '';
+    const ok   = text === 'pong';  // 完全一致で OK、それ以外は 500
 
     const body = {
       ok,
@@ -31,10 +35,14 @@ export async function handler(event) {
       model
     };
 
-    // デバッグ時は raw を同梱
-    const u = new URL(event.rawUrl);
-    if (u.searchParams.get('debug') === '1') {
+    // ?debug=1 のときは payload_keys（OpenAI へ実際に送った JSON のトップレベルキー一覧）も返す
+    if (isDebug) {
       body.raw = data;
+      if (data?.debug?.payload_keys) {
+        body.debug = { 
+          payload_keys: data.debug.payload_keys  // temperature が含まれないことを見える化
+        };
+      }
     }
 
     return {
@@ -49,4 +57,4 @@ export async function handler(event) {
       body: JSON.stringify({ ok: false, error: String(err) })
     };
   }
-}
+};
