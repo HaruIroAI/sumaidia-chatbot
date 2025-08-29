@@ -351,19 +351,28 @@ else if (isRaw) {
     }
 
 // === OPENAI API CALL (common path) ===
-const MIN_TOKENS = 512;  // ← 下限を大きめに（512でも可）
-const wanted = Number(body?.max_output_tokens);  // ← これを必ず定義
+
+// ▼ここから置き換え
+const MIN_TOKENS = 1024;                       // 下限を 1024 に引き上げ
+const wanted = Number(body?.max_output_tokens);
 
 const payload = {
-  model: model,
-  input: input,
-  text: { format: { type: 'text' }, verbosity: 'low' },
-  // reasoning フィールドは付けない（でも内部思考は起き得る）
+  model,
+  input,
+  text: { format: { type: 'text' } },          // verbosity は外す
   max_output_tokens: Number.isFinite(wanted) && wanted > 0
-    ? Math.max(MIN_TOKENS, wanted)
+    ? Math.max(MIN_TOKENS, wanted)            // クライアント指定があっても下限保障
     : MIN_TOKENS
 };
+
+// 通常チャットでは推論モードを使わない（reasoning トークンを食いにくくする）
+if (isRaw) {
+  payload.reasoning = { effort: 'low' };       // raw の時だけ付ける
+}
+
+// 最終サニタイズ（禁止キー除去）
 sanitizeResponsesPayload(payload);
+// ▲ここまで置き換え
 
     // Check for API key
     if (!apiKey) {
@@ -433,9 +442,8 @@ let text = extractText(data);
 
 // max_output_tokens が小さすぎて未完了 → 一度だけ増やして再試行
 if (!text && (data?.status === 'incomplete' || data?.incomplete_details?.reason === 'max_output_tokens')) {
-  // 1回だけ強めに増量
   const current = payload.max_output_tokens || MIN_TOKENS;
-  payload.max_output_tokens = Math.max(1024, Math.ceil(current * 2)); // 下限 1024、倍増
+  payload.max_output_tokens = Math.max(2048, Math.ceil(current * 2));  // 下限 2048、倍増
   sanitizeResponsesPayload(payload);
 
   const res2 = await fetch('https://api.openai.com/v1/responses', {
