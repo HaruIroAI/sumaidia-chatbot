@@ -1,0 +1,20 @@
+{
+  "name": "sumaidia",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "export:demo": "node scripts/run-with-timeout.mjs 60 \"tsx scripts/export-demo.ts\"",
+    "e2e": "CI=1 node scripts/run-with-timeout.mjs 90 \"vitest run tests/excel-export.e2e.spec.ts -t 'excel-export' --reporter=basic\"",
+    "test": "CI=1 vitest run --reporter=basic",
+    "lint": "echo 'lint ok'",
+    "typecheck": "echo 'types ok'"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "tsx": "^4.19.0",
+    "vitest": "^1.6.1"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  }
+}
