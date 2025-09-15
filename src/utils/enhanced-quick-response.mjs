@@ -12,13 +12,13 @@ const MAX_CACHE_SIZE = 100;
 const QUICK_RESPONSES = {
   greetings: {
     patterns: [
-      { match: /^こんにちは[！!]*$/i, response: "こんにちは〜！何か作りたいものある？✨ [[emo:greeting]]" },
-      { match: /^はじめまして[！!]*$/i, response: "はじめまして〜！スマイちゃんだよ。印刷のこと何でも聞いてね💕 [[emo:friendly]]" },
-      { match: /^おはよう(?:ございます)?[！!]*$/i, response: "おはよ〜！今日も元気にいこう✨ [[emo:energetic]]" },
-      { match: /^こんばんは[！!]*$/i, response: "こんばんは〜！遅くまでお疲れさま💕 [[emo:greeting]]" },
-      { match: /^hello[！!]*$/i, response: "Hello! スマイちゃんです✨ [[emo:greeting]]" },
-      { match: /^hi[！!]*$/i, response: "Hi! 何かお手伝いできる？💕 [[emo:friendly]]" },
-      { match: /^はろー[！!]*$/i, response: "やっほー！元気？何か作る？✨ [[emo:greeting]]" },
+      { match: /^こんにちは[！!]*$/i, response: "こんにちは〜！スマイディアのサービスをご案内するね✨ [[emo:greeting]]", skipAI: true },
+      { match: /^はじめまして[！!]*$/i, response: "はじめまして〜！スマイちゃんだよ。どんなご用件かな？💕 [[emo:friendly]]", skipAI: true },
+      { match: /^おはよう(?:ございます)?[！!]*$/i, response: "おはよ〜！今日はどんなお手伝いができるかな？✨ [[emo:energetic]]", skipAI: true },
+      { match: /^こんばんは[！!]*$/i, response: "こんばんは〜！どのサービスについて聞きたい？💕 [[emo:greeting]]", skipAI: true },
+      { match: /^hello[！!]*$/i, response: "Hello! スマイディアへようこそ✨ [[emo:greeting]]", skipAI: true },
+      { match: /^hi[！!]*$/i, response: "Hi! どんなご相談かな？💕 [[emo:friendly]]", skipAI: true },
+      { match: /^はろー[！!]*$/i, response: "やっほー！どのサービスに興味ある？✨ [[emo:greeting]]", skipAI: true },
       { match: /^やっほー[！!]*$/i, response: "やっほー！調子どう？💕 [[emo:playful]]" },
       { match: /^よろしく(?:お願いします)?[！!]*$/i, response: "よろしくね〜！何でも相談して✨ [[emo:friendly]]" },
       { match: /^どうも[！!]*$/i, response: "どうも〜！今日は何かお手伝いできる？✨ [[emo:greeting]]" },
@@ -84,7 +84,17 @@ const QUICK_RESPONSES = {
       { match: /^印刷[！!?？]*$/i, response: "印刷のことなら何でも聞いて！名刺？チラシ？✨ [[emo:professional]]" },
       { match: /^名刺[！!?？]*$/i, response: "名刺作りたいの？デザインから印刷まで全部できるよ💕 [[emo:working]]" },
       { match: /^チラシ[！!?？]*$/i, response: "チラシね！サイズと枚数教えてもらえる？✨ [[emo:professional]]" },
-      { match: /^ポスター[！!?？]*$/i, response: "ポスター制作もお任せ！どんなイメージ？💕 [[emo:working]]" }
+      { match: /^ポスター[！!?？]*$/i, response: "ポスター制作もお任せ！どんなイメージ？💕 [[emo:working]]" },
+      { match: /他とは?違うチラシ/i, response: "他と違うチラシ作りたいんだね！キラキラ加工とか、特殊な紙とか、AR付きとか、いろんな方法があるよ〜✨ どんなイメージが好き？ [[emo:excited]]" },
+      { match: /かわいい名刺/i, response: "かわいい名刺いいね〜！丸い角とか、パステルカラーとか、イラスト入りとか、いろんなかわいいデザインできるよ💕 [[emo:love]]" },
+      { match: /どんな.*チラシ.*いい/i, response: "目的によって変わるよ〜！イベント告知なら派手に、高級店なら上品に、セールなら目立つように✨ 何を宣伝する？ [[emo:thinking]]" },
+      { match: /チラシ.*作りたい/i, response: "チラシ制作お任せ〜！A4が人気だけど、三つ折りや変形サイズもできるよ✨ 何枚くらい必要？ [[emo:professional]]" },
+      { match: /^名刺.*作りたい/i, response: "名刺作りたいんだね！何枚必要？✨ [[emo:confident]]", skipAI: true },
+      { match: /^名刺を作りたい$/i, response: "名刺いいね〜！何枚必要？✨ [[emo:excited]]", skipAI: true },
+      { match: /魅力的な名刺/i, response: "魅力的な名刺作るね〜！何枚必要？✨ [[emo:excited]]", skipAI: true },
+      { match: /魅力的な名刺.*作りたい/i, response: "魅力的な名刺作るね〜！何枚必要？✨ [[emo:excited]]", skipAI: true },
+      { match: /かっこいい名刺/i, response: "かっこいい名刺いいね！何枚作る？✨ [[emo:confident]]", skipAI: true },
+      { match: /シンプルな名刺/i, response: "シンプルな名刺だね！何枚必要？✨ [[emo:professional]]", skipAI: true }
     ]
   }
 };

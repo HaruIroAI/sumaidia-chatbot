@@ -99,14 +99,14 @@ export function getOptimizedModelParams(complexity) {
     case COMPLEXITY_LEVELS.INSTANT:
     case COMPLEXITY_LEVELS.QUICK:
       return {
-        max_tokens: 50,
+        max_tokens: 60,  // Reduced for faster response
         temperature: 0.3,
         skipReasoning: true
       };
       
     case COMPLEXITY_LEVELS.MODERATE:
       return {
-        max_tokens: 150,
+        max_tokens: 120,  // Reduced for faster response
         temperature: 0.5,
         skipReasoning: true
       };
@@ -114,7 +114,7 @@ export function getOptimizedModelParams(complexity) {
     case COMPLEXITY_LEVELS.COMPLEX:
     default:
       return {
-        max_tokens: 1024,
+        max_tokens: 200,  // Significantly reduced for faster response
         temperature: 0.7,
         skipReasoning: false
       };

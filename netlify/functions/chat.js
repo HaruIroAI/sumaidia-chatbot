@@ -261,6 +261,28 @@ else if (isRaw) {
             headers.set('x-emo', 'friendly');
           }
           
+          // Generate quick actions for greetings
+          let quickActionsHTML = '';
+          try {
+            const quickActionsMod = await import(esmUrlFromSrc('utils', 'quick-actions.mjs'));
+            const { suggestQuickActions, generateQuickActionHTML } = quickActionsMod;
+            
+            // Check if this is an initial greeting
+            const isGreeting = userMessageText.match(/^(こんにちは|はろー|hello|hi|やっほー|おはよう)/i);
+            if (isGreeting) {
+              const actions = suggestQuickActions({ 
+                message: userMessageText, 
+                messageCount: 0,
+                isInitialGreeting: true 
+              });
+              if (actions) {
+                quickActionsHTML = generateQuickActionHTML(actions);
+              }
+            }
+          } catch (e) {
+            console.error('Quick actions error:', e);
+          }
+          
           // Return instant response without AI
           headers.set('x-quick-response', 'true');
           headers.set('x-response-time', '0');
@@ -276,7 +298,8 @@ else if (isRaw) {
                 },
                 finish_reason: 'stop'
               }],
-              usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+              usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+              quickActions: quickActionsHTML
             })
           };
         }
@@ -420,19 +443,122 @@ else if (isRaw) {
         // Get session state for filled slots
         const sessionState = router.getSession(sessionId, domain);
         
-        // Get conversation memory
+        // Check for specialized conversation flows
+        let specialFlowResponse = null;
         let sessionMemory = null;
+        
+        // Check if this is a printing service conversation (name cards, flyers, etc.)
         try {
-          const memoryMod = await import(esmUrlFromSrc('utils', 'conversation-memory.mjs'));
-          const { updateSession, buildContextSummary } = memoryMod;
+          const printingFlowMod = await import(esmUrlFromSrc('utils', 'printing-flow.mjs'));
+          const { shouldUsePrintingFlow, analyzePrintingContext, generatePrintingResponse, getPrintingSession } = printingFlowMod;
           
-          // Update session with current message
-          updateSession(sessionId, userText, 'user');
+          if (shouldUsePrintingFlow(userText, sessionId)) {
+            console.log('Printing flow activated for:', userText);
+            const printingContext = analyzePrintingContext(userText, sessionId);
+            const printingSession = getPrintingSession(sessionId);
+            const printingResponse = generatePrintingResponse(printingContext, printingSession);
+            
+            console.log('Printing response:', printingResponse);
+            
+            if (printingResponse && printingResponse.response) {
+              specialFlowResponse = printingResponse;
+              sessionMemory = `印刷サービス相談中:\n- サービス: ${printingSession.type || '未定'}\n- 数量: ${printingSession.quantity || '未定'}\n- 納期: ${printingSession.deadline || '未定'}`;
+              headers.set('x-printing-flow', 'active');
+            }
+          }
+        } catch (printingError) {
+          console.error('Printing flow error:', printingError);
+        }
+        
+        // Check if this is an EC site conversation
+        if (!specialFlowResponse) {
+          try {
+            const ecFlowMod = await import(esmUrlFromSrc('utils', 'ec-site-flow.mjs'));
+            const { shouldUseECFlow, analyzeECContext, generateECResponse, getECSession, getECSessionSummary } = ecFlowMod;
           
-          // Build context summary
-          sessionMemory = buildContextSummary(sessionId);
-        } catch (memoryError) {
-          console.error('Memory module error:', memoryError);
+          if (shouldUseECFlow(userText, sessionId)) {
+            const ecContext = analyzeECContext(userText, sessionId);
+            const ecSession = getECSession(sessionId);
+            const ecResponse = generateECResponse(ecContext, ecSession);
+            
+            if (ecResponse && ecResponse.response) {
+              specialFlowResponse = ecResponse;
+              // Add EC session summary to memory
+              if (!sessionMemory) {
+                sessionMemory = getECSessionSummary(sessionId);
+              }
+            }
+          }
+        } catch (ecFlowError) {
+          console.error('EC flow error:', ecFlowError);
+        }
+        
+        // Process special flow response if available
+        if (specialFlowResponse && specialFlowResponse.response) {
+          try {
+            // Load emotion mapper for special flow responses
+            const emotionMapperMod = await import(esmUrlFromSrc('utils', 'emotion-mapper.mjs'));
+            const { ensureEmotionTag } = emotionMapperMod;
+            
+            // Ensure emotion tag
+            let flowMessage = ensureEmotionTag(specialFlowResponse.response, specialFlowResponse.emotion);
+            const flowEmoMatch = flowMessage.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i);
+            
+            if (flowEmoMatch) {
+              const emotionId = flowEmoMatch[1];
+              flowMessage = flowMessage.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '');
+              headers.set('x-emo', emotionId);
+            }
+            
+            // Load quick actions if available
+            let quickActionsHTML = '';
+            if (specialFlowResponse.nextActions && specialFlowResponse.nextActions.length > 0) {
+              try {
+                const quickActionsMod = await import(esmUrlFromSrc('utils', 'quick-actions.mjs'));
+                const { generateQuickActionHTML } = quickActionsMod;
+                quickActionsHTML = generateQuickActionHTML(specialFlowResponse.nextActions);
+              } catch (e) {
+                console.error('Quick actions error:', e);
+              }
+            }
+            
+            headers.set('x-special-flow', 'true');
+            headers.set('x-flow-state', specialFlowResponse.state || 'active');
+            
+            return {
+              statusCode: 200,
+              headers: Object.fromEntries(headers),
+              body: JSON.stringify({
+                choices: [{
+                  message: {
+                    role: 'assistant',
+                    content: flowMessage
+                  },
+                  finish_reason: 'stop'
+                }],
+                usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+                quickActions: quickActionsHTML
+              })
+            };
+          } catch (flowError) {
+            console.error('Special flow processing error:', flowError);
+          }
+        }
+        
+        // Get general conversation memory
+        if (!sessionMemory) {
+          try {
+            const memoryMod = await import(esmUrlFromSrc('utils', 'conversation-memory.mjs'));
+            const { updateSession, buildContextSummary } = memoryMod;
+            
+            // Update session with current message
+            updateSession(sessionId, userText, 'user');
+            
+            // Build context summary
+            sessionMemory = buildContextSummary(sessionId);
+          } catch (memoryError) {
+            console.error('Memory module error:', memoryError);
+          }
         }
         
         // Build system prompt with Smaichan personality enabled
@@ -458,6 +584,11 @@ else if (isRaw) {
           userMessage: userText,  // Pass user message for response length analysis
           sessionMemory: sessionMemory  // Pass conversation memory
         });
+        
+        // Add validation reminder to system prompt
+        if (sessionMemory && sessionMemory.includes('印刷サービス')) {
+          systemPrompt += '\n\n## 重要：これは印刷サービス（名刺・チラシ）の相談です。Webサイトの話ではありません。';
+        }
 
         // Build input for Responses API
         input = [
@@ -489,7 +620,7 @@ else if (isRaw) {
 // === OPENAI API CALL (common path) ===
 
 // Optimize token count based on message complexity
-let MIN_TOKENS = 1024;  // Default
+let MIN_TOKENS = 150;  // Reduced default for faster responses
 let optimizedTokens = MIN_TOKENS;
 
 // Adjust tokens based on complexity if available
@@ -539,17 +670,23 @@ if (!isRaw && 'reasoning' in payload) {
       };
     }
 
-    // Call OpenAI Responses API with retry
+    // Call OpenAI Responses API with timeout and retry
     let response, data;
     try {
-      const result = await withRetry(async () => {
+      // Add timeout wrapper (8 seconds for Netlify's 10-second limit)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), 8000);
+      });
+      
+      const apiPromise = withRetry(async () => {
         const res = await fetch('https://api.openai.com/v1/responses', {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
             'authorization': `Bearer ${apiKey}`
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(7500) // 7.5 second timeout for fetch
         });
         
         const json = await res.json();
@@ -562,19 +699,45 @@ if (!isRaw && 'reasoning' in payload) {
         }
         
         return { response: res, data: json };
-      });
+      }, { tries: 2, base: 200 }); // Reduce retries for faster failure
       
+      const result = await Promise.race([apiPromise, timeoutPromise]);
       response = result.response;
       data = result.data;
     } catch (retryError) {
-      // After all retries failed
-      headers.set('x-error', 'openai_unavailable');
+      // After all retries failed or timeout
+      console.error('API call failed:', retryError);
+      
+      // Provide a fallback response for timeout/error
+      const isTimeout = retryError.message === 'Request timeout';
+      const fallbackMessage = isTimeout 
+        ? "ちょっと時間がかかっちゃってるね💦 もう一度シンプルに聞いてもらえる？ [[emo:worried]]"
+        : "ごめんね、ちょっと調子が悪いみたい💦 もう一度話しかけてもらえる？ [[emo:worried]]";
+      
+      // Extract emotion from fallback
+      const emoMatch = fallbackMessage.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i);
+      const cleanMessage = fallbackMessage.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '');
+      
+      if (emoMatch) {
+        headers.set('x-emo', emoMatch[1]);
+      }
+      
+      headers.set('x-error', isTimeout ? 'timeout' : 'openai_unavailable');
+      headers.set('x-fallback', 'true');
+      
+      // Return fallback response as successful (to avoid error in frontend)
       return {
-        statusCode: 503,
+        statusCode: 200,
         headers: Object.fromEntries(headers),
-        body: JSON.stringify({ 
-          error: 'Service temporarily unavailable',
-          message: String(retryError?.message || retryError)
+        body: JSON.stringify({
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: cleanMessage
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
         })
       };
     }
@@ -594,6 +757,29 @@ if (!isRaw && 'reasoning' in payload) {
 
 // Extract text（最初の試行）
 let text = extractText(data);
+
+// Check and fix multiple questions
+try {
+  const questionLimiterMod = await import(esmUrlFromSrc('utils', 'question-limiter.mjs'));
+  const { hasMultipleQuestions, fixMultipleQuestions } = questionLimiterMod;
+  
+  if (text && hasMultipleQuestions(text)) {
+    console.log('Multiple questions detected, fixing:', text);
+    const context = {
+      type: domain === 'printing' ? 'businessCard' : null,
+      sessionInfo: {
+        quantity: null,  // This should come from session
+        deadline: null,
+        design: null
+      }
+    };
+    text = fixMultipleQuestions(text, context);
+    console.log('Fixed to single question:', text);
+    headers.set('x-questions-fixed', 'true');
+  }
+} catch (e) {
+  console.error('Question limiter error:', e);
+}
 
 // max_output_tokens が小さすぎて未完了 → 一度だけ増やして再試行
 if (!text && (data?.status === 'incomplete' || data?.incomplete_details?.reason === 'max_output_tokens')) {

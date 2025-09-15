@@ -22,6 +22,128 @@
             background-color: #f8f9fa;
         }
         
+        /* Quick Actions Container */
+        .quick-actions-container {
+            margin: 10px 20px;
+            padding: 10px;
+        }
+        
+        /* Contact Form Styles */
+        .contact-form-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .contact-form-header h3 {
+            color: #ff6b6b;
+            margin: 0 0 10px 0;
+            font-size: 18px;
+        }
+        
+        .contact-form-header p {
+            color: #666;
+            font-size: 14px;
+            margin: 0 0 20px 0;
+        }
+        
+        .contact-form .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .contact-form label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .contact-form .required {
+            color: #ff6b6b;
+        }
+        
+        .contact-form input,
+        .contact-form select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .contact-form input:focus,
+        .contact-form select:focus {
+            outline: none;
+            border-color: #ff6b6b;
+        }
+        
+        .contact-form .submit-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #ff6b6b, #ff8b8b);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .contact-form .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255,107,107,0.3);
+        }
+        
+        .quick-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .quick-actions-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .quick-action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .quick-action-btn {
+            padding: 10px 18px;
+            background: linear-gradient(135deg, #ff6b6b, #ff8b8b);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 120px;
+            margin: 4px;
+        }
+        
+        .quick-action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            background: linear-gradient(135deg, #ff5252, #ff7a7a);
+        }
+        
+        .quick-action-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
         /* Three.js Logo Background Container */
         .sumaidia-logo-bg {
             position: fixed;
@@ -982,6 +1104,25 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 let responseContent = message.content;
                 let emotion = null;
                 let intensity = null;
+                let quickActionsHTML = data.quickActions || null;
+                
+                // 複数質問を検出して修正
+                if (responseContent) {
+                    // 複数の？がある場合、最初の質問だけにする
+                    const questions = responseContent.match(/[^？！。]+？/g);
+                    if (questions && questions.length > 1) {
+                        console.log('Multiple questions detected, fixing...');
+                        responseContent = questions[0] + '✨';
+                    }
+                    
+                    // 「ところで」「あと」「それから」などが含まれる場合も修正
+                    if (responseContent.includes('ところで') || responseContent.includes('あと')) {
+                        const firstPart = responseContent.split(/ところで|あと/)[0];
+                        if (firstPart.includes('？')) {
+                            responseContent = firstPart + '✨';
+                        }
+                    }
+                }
                 
                 // Priority 1: Use emotion from x-emo header
                 if (emotionFromHeader) {
@@ -1312,6 +1453,104 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             }
         }
         
+        // Display quick action buttons
+        function displayQuickActions(html) {
+            const messagesContainer = document.getElementById('messages');
+            const quickActionsDiv = document.createElement('div');
+            quickActionsDiv.className = 'quick-actions-container';
+            quickActionsDiv.innerHTML = html;
+            messagesContainer.appendChild(quickActionsDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // Generate quick actions based on response content
+        function generateQuickActionsFromResponse(responseText) {
+            let actions = [];
+            
+            // 初回挨拶のパターン
+            if (responseText.includes('何か作りたいもの') || responseText.includes('どんなご用件')) {
+                actions = [
+                    { text: '印刷・製造加工', value: '印刷や製造加工について相談したいです' },
+                    { text: 'Web・デジタル制作', value: 'Webサイトやデジタルコンテンツを作りたいです' },
+                    { text: '採用支援', value: '採用支援サービスについて聞きたいです' },
+                    { text: '広告・ブランディング', value: '広告やブランディングの相談をしたいです' }
+                ];
+            }
+            // 名刺の枚数を聞いている場合
+            else if (responseText.includes('何枚') || responseText.includes('何部')) {
+                actions = [
+                    { text: '100枚', value: '100枚お願いします' },
+                    { text: '500枚', value: '500枚お願いします' },
+                    { text: '1000枚', value: '1000枚お願いします' },
+                    { text: '相談したい', value: '枚数を相談したいです' }
+                ];
+            }
+            // 納期を聞いている場合
+            else if (responseText.includes('いつまで') || responseText.includes('納期')) {
+                actions = [
+                    { text: '1週間以内', value: '1週間以内に必要です' },
+                    { text: '2週間くらい', value: '2週間くらいで大丈夫です' },
+                    { text: '1ヶ月以内', value: '1ヶ月以内ならOKです' },
+                    { text: '急ぎじゃない', value: '特に急いでません' }
+                ];
+            }
+            // デザインについて聞いている場合
+            else if (responseText.includes('デザイン')) {
+                actions = [
+                    { text: 'テンプレートでOK', value: 'テンプレートデザインでお願いします' },
+                    { text: '一緒に考えたい', value: 'デザインを相談しながら決めたいです' },
+                    { text: 'データ持込', value: 'デザインデータを持ち込みます' },
+                    { text: 'お任せ', value: 'デザインはお任せします' }
+                ];
+            }
+            
+            if (actions.length > 0) {
+                const html = `
+                    <div class="quick-actions">
+                        <div class="quick-actions-label">選択できる回答:</div>
+                        <div class="quick-action-buttons">
+                            ${actions.map(action => `
+                                <button class="quick-action-btn" 
+                                        data-value="${action.value}" 
+                                        onclick="sendQuickAction(this)">
+                                    ${action.text}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                displayQuickActions(html);
+            }
+        }
+        
+        // Send quick action (called by button onclick)
+        window.sendQuickAction = function(button) {
+            const value = button.getAttribute('data-value');
+            const emotion = button.getAttribute('data-emotion');
+            
+            // Remove all quick action containers
+            document.querySelectorAll('.quick-actions-container').forEach(el => el.remove());
+            
+            // Add user message
+            addMessage(value, true);
+            conversationManager.addMessage(value, true);
+            
+            // Submit the message as if user typed it
+            const input = document.getElementById('user-input');
+            const originalValue = input.value;
+            input.value = value;
+            
+            // Trigger send
+            document.getElementById('chat-form').dispatchEvent(new Event('submit'));
+            
+            // Restore original input if needed
+            setTimeout(() => {
+                if (input.value === value) {
+                    input.value = '';
+                }
+            }, 100);
+        };
+        
         // Add message to chat
         function addMessage(content, isUser = false, expression = 'normal') {
             const messageDiv = document.createElement('div');
@@ -1516,6 +1755,15 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             }
             
             addMessage(styledText, false, finalEmotion);
+            
+            // Display quick actions if available
+            if (quickActionsHTML) {
+                displayQuickActions(quickActionsHTML);
+            } else {
+                // Generate quick actions based on response content
+                generateQuickActionsFromResponse(responseText);
+            }
+            
             conversationManager.addMessage(responseText, false); // ConversationManagerに追加（元のテキストを保存）
         });
         

@@ -3,6 +3,8 @@
  * Maps message content to appropriate facial expressions
  */
 
+import { getDiverseExpression } from './expression-diversifier.mjs';
+
 // 30 expression patterns available
 const EXPRESSION_PATTERNS = {
   // Positive emotions
@@ -233,18 +235,25 @@ export function analyzeEmotion(message, context = 'assistant') {
     if (context === 'assistant') {
       // Default emotions for different response types
       if (message.length < 50) {
-        return 'friendly';  // Short responses
+        selectedEmotion = 'friendly';  // Short responses
       } else if (lowerMessage.includes('？') || lowerMessage.includes('?')) {
-        return 'curious';  // Questions
+        selectedEmotion = 'curious';  // Questions
       } else if (lowerMessage.includes('！') || lowerMessage.includes('!')) {
-        return 'excited';  // Exclamations
+        selectedEmotion = 'excited';  // Exclamations
       } else {
-        return 'neutral';  // Default
+        selectedEmotion = 'neutral';  // Default
       }
     }
   }
   
-  return selectedEmotion;
+  // Use expression diversifier for more variety
+  try {
+    return getDiverseExpression(message, selectedEmotion, context);
+  } catch (e) {
+    // Fallback if diversifier fails
+    console.error('Expression diversifier error:', e);
+    return selectedEmotion;
+  }
 }
 
 /**
