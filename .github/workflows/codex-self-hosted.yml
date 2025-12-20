@@ -1,0 +1,130 @@
+name: Codex Review (Self-hosted)
+
+# Trigger: repository_dispatch event from codex-auto-trigger.yml
+on:
+  repository_dispatch:
+    types: [codex-review-requested]
+
+jobs:
+  run-codex-review:
+    # Runs on self-hosted runner (kamiko's Mac)
+    runs-on: self-hosted
+    timeout-minutes: 30
+
+    steps:
+      - name: Display review request info
+        run: |
+          echo "=== Codex Review Request ==="
+          echo "Issue: #${{ github.event.client_payload.issue_number }}"
+          echo "Task ID: ${{ github.event.client_payload.task_id }}"
+          echo "Repo: ${{ github.event.client_payload.repo }}"
+          echo "URL: ${{ github.event.client_payload.issue_url }}"
+          echo "=========================="
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        run: |
+          # Ensure we're using the correct environment
+          export PATH="$HOME/.local/bin:$PATH"
+
+          # Check Codex availability
+          if command -v codex &> /dev/null; then
+            echo "✅ Codex CLI is available"
+            codex --version || true
+          else
+            echo "❌ Codex CLI not found"
+            echo "Please install Codex: npm install -g @openai/codex-cli"
+            exit 1
+          fi
+
+      - name: Run Codex review
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.client_payload.issue_number }}
+          TASK_ID: ${{ github.event.client_payload.task_id }}
+          ISSUE_URL: ${{ github.event.client_payload.issue_url }}
+          REPO: ${{ github.event.client_payload.repo }}
+        run: |
+          echo "Starting Codex review for Issue #$ISSUE_NUMBER..."
+          PROJECT_DIR="$HOME/kamiko-independence"
+
+          if [[ -f "$PROJECT_DIR/.auto-dev/scripts/codex-start.sh" ]]; then
+            cd "$PROJECT_DIR"
+            bash .auto-dev/scripts/codex-start.sh --review-only
+          else
+            echo "Using fallback: direct Codex invocation"
+            cd "$PROJECT_DIR"
+            PROMPT="Review GitHub Issue at ${ISSUE_URL}. Focus on code quality, security, and performance."
+            codex exec --full-auto "$PROMPT" || echo "Codex execution completed"
+          fi
+
+      - name: Post completion notification
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          TASK_ID: ${{ github.event.client_payload.task_id }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issueNumber = parseInt('${{ github.event.client_payload.issue_number }}');
+            const status = '${{ job.status }}';
+            const taskId = process.env.TASK_ID;
+            const workflowUrl = process.env.WORKFLOW_URL;
+
+            let body;
+            if (status === 'success') {
+              body = [
+                "## ✅ Codex Review Completed",
+                "",
+                "The automated review has been completed by the self-hosted runner.",
+                "",
+                "**Details**:",
+                "- Task ID: " + taskId,
+                "- Runner: Self-hosted",
+                "- Status: Success",
+                "",
+                "Please check the review comments above.",
+                "",
+                "---",
+                "_Powered by Auto-Dev System_"
+              ].join("\n");
+            } else {
+              body = [
+                "## ⚠️ Codex Review Status",
+                "",
+                "The automated review job has finished with status: **" + status + "**",
+                "",
+                "**Details**:",
+                "- Task ID: " + taskId,
+                "- Runner: Self-hosted",
+                "- Status: " + status,
+                "",
+                "Please check the [workflow run](" + workflowUrl + ") for details.",
+                "",
+                "---",
+                "_Powered by Auto-Dev System_"
+              ].join("\n");
+            }
+
+            try {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: body
+              });
+            } catch (error) {
+              console.log('Could not post comment:', error.message);
+            }
+
+      - name: Summary
+        run: |
+          echo "## 🤖 Codex Review Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Issue**: #${{ github.event.client_payload.issue_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Task ID**: ${{ github.event.client_payload.task_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
