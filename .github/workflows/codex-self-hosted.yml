@@ -1,9 +1,19 @@
 name: Codex Review (Self-hosted)
 
-# Trigger: repository_dispatch event from codex-auto-trigger.yml
+# Trigger: repository_dispatch event from codex-auto-trigger.yml or manual
 on:
   repository_dispatch:
     types: [codex-review-requested]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to review'
+        required: false
+        default: '49'
+
+permissions:
+  issues: write
+  contents: read
 
 jobs:
   run-codex-review:
@@ -12,13 +22,24 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Set issue number
+        id: issue
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "number=${{ inputs.issue_number }}" >> $GITHUB_OUTPUT
+            echo "url=https://github.com/${{ github.repository }}/issues/${{ inputs.issue_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "number=${{ github.event.client_payload.issue_number }}" >> $GITHUB_OUTPUT
+            echo "url=${{ github.event.client_payload.issue_url }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Display review request info
         run: |
           echo "=== Codex Review Request ==="
-          echo "Issue: #${{ github.event.client_payload.issue_number }}"
+          echo "Issue: #${{ steps.issue.outputs.number }}"
           echo "Task ID: ${{ github.event.client_payload.task_id }}"
-          echo "Repo: ${{ github.event.client_payload.repo }}"
-          echo "URL: ${{ github.event.client_payload.issue_url }}"
+          echo "Repo: ${{ github.repository }}"
+          echo "URL: ${{ steps.issue.outputs.url }}"
           echo "=========================="
 
       - name: Checkout repository
@@ -43,10 +64,10 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.client_payload.issue_number }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           TASK_ID: ${{ github.event.client_payload.task_id }}
-          ISSUE_URL: ${{ github.event.client_payload.issue_url }}
-          REPO: ${{ github.event.client_payload.repo }}
+          ISSUE_URL: ${{ steps.issue.outputs.url }}
+          REPO: ${{ github.repository }}
         run: |
           echo "Starting Codex review for Issue #$ISSUE_NUMBER..."
           PROJECT_DIR="$HOME/kamiko-independence"
@@ -67,10 +88,11 @@ jobs:
         env:
           TASK_ID: ${{ github.event.client_payload.task_id }}
           WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const issueNumber = parseInt('${{ github.event.client_payload.issue_number }}');
+            const issueNumber = parseInt(process.env.ISSUE_NUMBER);
             const status = '${{ job.status }}';
             const taskId = process.env.TASK_ID;
             const workflowUrl = process.env.WORKFLOW_URL;
@@ -125,6 +147,6 @@ jobs:
         run: |
           echo "## 🤖 Codex Review Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Issue**: #${{ github.event.client_payload.issue_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Issue**: #${{ steps.issue.outputs.number }}" >> $GITHUB_STEP_SUMMARY
           echo "**Task ID**: ${{ github.event.client_payload.task_id }}" >> $GITHUB_STEP_SUMMARY
           echo "**Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
