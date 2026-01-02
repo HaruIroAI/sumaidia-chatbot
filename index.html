@@ -946,10 +946,7 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 
                 const body = {
                     messages: messages,
-                    temperature: 0.75,
-                    max_tokens: 300,
-                    presence_penalty: 0.3,
-                    frequency_penalty: 0.2
+                    max_tokens: 300
                 };
                 
                 if (isNetlify) {
