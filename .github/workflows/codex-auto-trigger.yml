@@ -1,0 +1,145 @@
+name: Codex Auto-Trigger
+
+# Trigger: Issue created/labeled with codex-review
+on:
+  issues:
+    types: [opened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to review'
+        required: true
+        type: number
+
+permissions:
+  issues: write
+  contents: write  # Required for repository-dispatch
+
+jobs:
+  trigger-codex-review:
+    # Run conditions:
+    # - workflow_dispatch: always run
+    # - opened: run if codex-review label is already present
+    # - labeled: run only when the 'codex-review' label is specifically added
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'codex-review')) ||
+      (github.event.action == 'labeled' && github.event.label.name == 'codex-review')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Extract metadata
+        id: metadata
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "issue_number=${{ inputs.issue_number }}" >> $GITHUB_OUTPUT
+            echo "issue_title=Manual trigger" >> $GITHUB_OUTPUT
+            echo "issue_url=https://github.com/${{ github.repository }}/issues/${{ inputs.issue_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            echo "issue_title=${{ github.event.issue.title }}" >> $GITHUB_OUTPUT
+            echo "issue_url=${{ github.event.issue.html_url }}" >> $GITHUB_OUTPUT
+          fi
+          echo "repo=${{ github.repository }}" >> $GITHUB_OUTPUT
+
+          # Extract task ID from title
+          TASK_ID=$(echo "${{ github.event.issue.title }}" | grep -oE "TASK-[0-9]+" | head -1 || echo "N/A")
+          echo "task_id=$TASK_ID" >> $GITHUB_OUTPUT
+
+      - name: Trigger Codex via Webhook
+        if: env.CODEX_WEBHOOK_URL != ''
+        continue-on-error: true
+        env:
+          CODEX_WEBHOOK_URL: ${{ secrets.CODEX_WEBHOOK_URL }}
+          CODEX_WEBHOOK_SECRET: ${{ secrets.CODEX_WEBHOOK_SECRET }}
+          ISSUE_NUMBER: ${{ steps.metadata.outputs.issue_number }}
+          ISSUE_URL: ${{ steps.metadata.outputs.issue_url }}
+          TASK_ID: ${{ steps.metadata.outputs.task_id }}
+          REPO: ${{ steps.metadata.outputs.repo }}
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          PAYLOAD="{\"action\":\"codex-review\",\"issue_number\":${ISSUE_NUMBER},\"issue_url\":\"${ISSUE_URL}\",\"task_id\":\"${TASK_ID}\",\"repo\":\"${REPO}\",\"timestamp\":\"${TIMESTAMP}\"}"
+
+          if [[ -n "$CODEX_WEBHOOK_SECRET" ]]; then
+            SIGNATURE=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "$CODEX_WEBHOOK_SECRET" | cut -d' ' -f2)
+            curl -X POST "$CODEX_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -H "X-Webhook-Signature: sha256=$SIGNATURE" \
+              -d "$PAYLOAD" \
+              --fail --silent --show-error
+          else
+            curl -X POST "$CODEX_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD" \
+              --fail --silent --show-error
+          fi
+
+      - name: Trigger via Repository Dispatch (Self-hosted Runner)
+        if: env.CODEX_WEBHOOK_URL == ''
+        env:
+          CODEX_WEBHOOK_URL: ${{ secrets.CODEX_WEBHOOK_URL }}
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          event-type: codex-review-requested
+          client-payload: |
+            {
+              "issue_number": ${{ steps.metadata.outputs.issue_number }},
+              "issue_url": "${{ steps.metadata.outputs.issue_url }}",
+              "task_id": "${{ steps.metadata.outputs.task_id }}",
+              "repo": "${{ steps.metadata.outputs.repo }}"
+            }
+
+      - name: Post status to Issue
+        uses: actions/github-script@v7
+        env:
+          TASK_ID: ${{ steps.metadata.outputs.task_id }}
+        with:
+          script: |
+            const issueNumber = ${{ steps.metadata.outputs.issue_number }};
+            const taskId = process.env.TASK_ID;
+            const now = new Date().toISOString();
+
+            const statusMessage = [
+              "## 🤖 Codex Auto-Trigger",
+              "",
+              "**Status**: Review request received",
+              "",
+              "A `repository_dispatch` event has been sent. If a self-hosted runner is configured,",
+              "Codex will start automatically.",
+              "",
+              "**Alternative**: Run manually on your local machine:",
+              "```bash",
+              "cd ~/kamiko-independence",
+              "bash .auto-dev/scripts/codex-start.sh",
+              "```",
+              "",
+              "**Task ID**: " + taskId,
+              "**Triggered at**: " + now,
+              "",
+              "---",
+              "_Powered by Auto-Dev System_"
+            ].join("\n");
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: statusMessage
+            });
+
+      - name: Summary
+        env:
+          CODEX_WEBHOOK_URL: ${{ secrets.CODEX_WEBHOOK_URL }}
+        run: |
+          echo "## 🤖 Codex Auto-Trigger Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Issue**: #${{ steps.metadata.outputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Task ID**: ${{ steps.metadata.outputs.task_id }}" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$CODEX_WEBHOOK_URL" ]; then
+            echo "**Method**: Webhook" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Method**: Repository Dispatch" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Note: Self-hosted execution is handled by codex-self-hosted.yml
+  # which receives the repository_dispatch event from this workflow.

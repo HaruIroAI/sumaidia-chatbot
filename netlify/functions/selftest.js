@@ -1,60 +1,58 @@
-const { extractText } = require('./_extractText.js');
+// netlify/functions/selftest.js
+exports.handler = async (event) => {
+  // Deploy Preview / 本番 どちらでも「今まさに開いているオリジン」を使う
+  const host  = event.headers['x-forwarded-host'] || event.headers.host;
+  const proto = event.headers['x-forwarded-proto'] || 'https';
+  const endpoint = `${proto}://${host}/.netlify/functions/chat?raw=1`;
 
-exports.handler = async function handler(event) {
+  // 念のため：OpenAI の応答からテキストを抜く軽量版
+  const pluckText = (json) => {
+    if (!json) return '';
+    if (typeof json.output_text === 'string') return json.output_text;
+    const c = json.choices?.[0]?.message?.content;
+    return typeof c === 'string' ? c : '';
+  };
+
   try {
-    // いま実行中のオリジン（Deploy Preview / 本番どちらでも OK）
-    const origin = new URL(event.rawUrl || event.url || 'http://localhost').origin;
-    const u = new URL(event.rawUrl || event.url || 'http://localhost');
-    const isDebug = u.searchParams.get('debug') === '1';
-    
-    // /chat?raw=1 を同一オリジンで叩く（直接 OpenAI を叩かず）
-    const debugParam = isDebug ? '&debug=1' : '';
-    const res = await fetch(`${origin}/.netlify/functions/chat?raw=1${debugParam}`, {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         input: [
-          { role:'system', content:[{ type:'input_text', text:'「pong」と1語だけ返す' }] },
-          { role:'user',   content:[{ type:'input_text', text:'ping' }] }
+          { role: 'system', content: [{ type:'input_text', text:'「pong」と1語だけ返す' }] },
+          { role: 'user',   content: [{ type:'input_text', text:'ping' }] }
         ],
-        max_output_tokens: 16
+        // 小さすぎると incomplete になるので最低 256
+        max_output_tokens: 256
       })
     });
 
-    const model = res.headers.get('x-model') || process.env.OPENAI_MODEL || 'gpt-5-mini';
-    const data  = await res.json().catch(() => ({}));
-
-    // extractText() で本文を取り出し
-    const text = extractText(data)?.trim() || '';
-    const ok   = text === 'pong';  // 完全一致で OK、それ以外は 500
-
-    const body = {
-      ok,
-      expected: 'pong',
-      sample: text,
-      model
-    };
-
-    // ?debug=1 のときは payload_keys（OpenAI へ実際に送った JSON のトップレベルキー一覧）も返す
-    if (isDebug) {
-      body.raw = data;
-      if (data?.debug?.payload_keys) {
-        body.debug = { 
-          payload_keys: data.debug.payload_keys  // temperature が含まれないことを見える化
-        };
-      }
-    }
+    const json  = await res.json().catch(() => ({}));
+    const text  = pluckText(json).trim();
+    const ok    = text === 'pong';
 
     return {
-      statusCode: ok ? 200 : 500,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body)
+      statusCode: 200,
+      headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
+      body: JSON.stringify({
+        ok,
+        expected: 'pong',
+        sample: text,
+        endpoint,
+        status_from_chat: res.status,
+        signature: 'selftest-v3' // ← これが返ってくれば新コードが動いてます
+      })
     };
-  } catch (err) {
+  } catch (e) {
     return {
-      statusCode: 500,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ok: false, error: String(err) })
+      statusCode: 200, // 自己診断なので 200 で返し、中身で失敗を示す
+      headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
+      body: JSON.stringify({
+        ok: false,
+        error: String(e),
+        endpoint,
+        signature: 'selftest-v3'
+      })
     };
   }
 };

@@ -2,8 +2,6 @@ const { extractText } = require("./_extractText.js");
 const { join } = require('path');
 const { pathToFileURL } = require('url');
 
-// Quick response will be loaded dynamically when needed
-
 // === add: forbidden key sanitizer =========================
 const FORBIDDEN_KEYS = new Set([
   'temperature', 'top_p', 'presence_penalty', 'frequency_penalty',
@@ -122,9 +120,6 @@ exports.handler = async function handler(event, context) {
   const debug = url.searchParams.get('debug') === '1';
   const selftest = url.pathname?.includes('selftest');
   
-  // Smaichan mode control (default: enabled, can be disabled via env var)
-  const enableSmaichan = process.env.DISABLE_SMAICHAN !== 'true';
-  
   // Initialize common headers with x-domain always set
   const headers = new Headers({
     'content-type': 'application/json',
@@ -133,7 +128,6 @@ exports.handler = async function handler(event, context) {
     'x-session-id': sessionId,
     'x-domain': 'general',  // Default domain
     'x-backend': 'openai',
-    'x-smaichan': enableSmaichan ? 'enabled' : 'disabled',
     'x-deploy-id': process.env.DEPLOY_ID || '',
     'x-commit': process.env.COMMIT_REF || ''
   });
@@ -159,7 +153,6 @@ exports.handler = async function handler(event, context) {
     let systemPrompt = '';
     let userText = '';
     let input;
-    let messageComplexity = null; // Move to outer scope
 
     // === EARLY RETURN PATHS (no ESM loading) ===
     
@@ -220,71 +213,6 @@ else if (isRaw) {
   
     // === NORMAL MODE - requires ESM modules ===
     else if (body.messages) {
-      // Extract user message for quick response check
-      const messages = body.messages || [];
-      const userMessages = messages.filter(m => m.role === 'user');
-      const latestUserMessage = userMessages[userMessages.length - 1];
-      const userMessageText = latestUserMessage?.content || '';
-      
-      // Analyze message complexity first
-      try {
-        const optimizerMod = await import(esmUrlFromSrc('utils', 'response-optimizer.mjs'));
-        const { preprocessMessage } = optimizerMod;
-        const analysis = preprocessMessage(userMessageText);
-        messageComplexity = analysis.complexity; // Use outer scope variable
-        headers.set('x-complexity', String(messageComplexity));
-        
-        // If message is simple enough, check quick responses
-        if (analysis.skipAI) {
-          headers.set('x-optimization', 'skip-ai');
-        }
-      } catch (optimizerError) {
-        console.error('Optimizer error:', optimizerError);
-      }
-      
-      // Check for quick response first (skip AI for simple greetings)
-      try {
-        const quickResponseMod = await import(esmUrlFromSrc('utils', 'enhanced-quick-response.mjs'));
-        const { getQuickResponse } = quickResponseMod;
-        
-        const quickResponse = getQuickResponse(userMessageText);
-        if (quickResponse && quickResponse.skipAI) {
-          // Extract emotion tag from quick response
-          let quickMessage = quickResponse.message;
-          const quickEmoMatch = quickMessage.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i);
-          if (quickEmoMatch) {
-            const emotionId = quickEmoMatch[1];
-            quickMessage = quickMessage.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '');
-            headers.set('x-emo', emotionId);
-          } else {
-            // Default emotion for quick responses
-            headers.set('x-emo', 'friendly');
-          }
-          
-          // Return instant response without AI
-          headers.set('x-quick-response', 'true');
-          headers.set('x-response-time', '0');
-          
-          return {
-            statusCode: 200,
-            headers: Object.fromEntries(headers),
-            body: JSON.stringify({
-              choices: [{
-                message: {
-                  role: 'assistant',
-                  content: quickMessage
-                },
-                finish_reason: 'stop'
-              }],
-              usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
-            })
-          };
-        }
-      } catch (quickResponseError) {
-        // If quick response fails, continue with normal flow
-        console.error('Quick response error:', quickResponseError);
-      }
-      
       // Load ESM modules only when absolutely needed
       let IntentClassifier, ConversationRouter, buildSystemPrompt, buildConversationPrompt;
       
@@ -321,8 +249,10 @@ else if (isRaw) {
       const classifier = new IntentClassifier();
       const router = new ConversationRouter();
       
-      // Reuse already extracted message data
-      userText = userMessageText;
+      const messages = body.messages || [];
+      const userMessages = messages.filter(m => m.role === 'user');
+      const latestUserMessage = userMessages[userMessages.length - 1];
+      userText = latestUserMessage?.content || '';
       
       if (latestUserMessage && latestUserMessage.content) {
         // Classify intent
@@ -343,99 +273,38 @@ else if (isRaw) {
 
         // Check for FAQ match first (priority response)
         if (routingResult.faqAnswer && routingResult.faqAnswer.score >= 0.7) {
-          // Load emotion mapper for FAQ responses
-          try {
-            const emotionMapperMod = await import(esmUrlFromSrc('utils', 'emotion-mapper.mjs'));
-            const { ensureEmotionTag, analyzeEmotion } = emotionMapperMod;
-            
-            // Ensure emotion tag for FAQ answer
-            let faqAnswer = ensureEmotionTag(routingResult.faqAnswer.answer);
-            const faqEmoMatch = faqAnswer.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i);
-            
-            if (faqEmoMatch) {
-              const emotionId = faqEmoMatch[1];
-              faqAnswer = faqAnswer.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '');
-              headers.set('x-emo', emotionId);
-            } else {
-              // Default emotion for FAQ
-              headers.set('x-emo', 'explaining');
-            }
-            
-            // Update headers for FAQ response
-            headers.set('x-backend', 'faq');
-            headers.set('x-faq-match', 'true');
-            headers.set('x-faq-score', String(routingResult.faqAnswer.score || 1.0));
-            headers.set('x-faq-type', routingResult.faqAnswer.matchType || 'partial');
-            
-            // Return FAQ answer directly
-            return {
-              statusCode: 200,
-              headers: Object.fromEntries(headers),
-              body: JSON.stringify({
-                choices: [{
-                  message: {
-                    role: 'assistant',
-                    content: faqAnswer
-                  },
-                  finish_reason: 'stop'
-                }],
-                usage: {
-                  prompt_tokens: 0,
-                  completion_tokens: 0,
-                  total_tokens: 0
-                }
-              })
-            };
-          } catch (faqEmotionError) {
-            console.error('FAQ emotion mapper error:', faqEmotionError);
-            // Continue with FAQ response without emotion tag
-            headers.set('x-emo', 'explaining');
-            headers.set('x-backend', 'faq');
-            headers.set('x-faq-match', 'true');
-            headers.set('x-faq-score', String(routingResult.faqAnswer.score || 1.0));
-            headers.set('x-faq-type', routingResult.faqAnswer.matchType || 'partial');
-            
-            return {
-              statusCode: 200,
-              headers: Object.fromEntries(headers),
-              body: JSON.stringify({
-                choices: [{
-                  message: {
-                    role: 'assistant',
-                    content: routingResult.faqAnswer.answer
-                  },
-                  finish_reason: 'stop'
-                }],
-                usage: {
-                  prompt_tokens: 0,
-                  completion_tokens: 0,
-                  total_tokens: 0
-                }
-              })
-            };
-          }
+          // Update headers for FAQ response
+          headers.set('x-backend', 'faq');
+          headers.set('x-faq-match', 'true');
+          headers.set('x-faq-score', String(routingResult.faqAnswer.score || 1.0));
+          headers.set('x-faq-type', routingResult.faqAnswer.matchType || 'partial');
+          
+          // Return FAQ answer directly
+          return {
+            statusCode: 200,
+            headers: Object.fromEntries(headers),
+            body: JSON.stringify({
+              choices: [{
+                message: {
+                  role: 'assistant',
+                  content: routingResult.faqAnswer.answer
+                },
+                finish_reason: 'stop'
+              }],
+              usage: {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 0
+              }
+            })
+          };
         }
         
         // No FAQ match, proceed with AI generation
         // Get session state for filled slots
         const sessionState = router.getSession(sessionId, domain);
         
-        // Get conversation memory
-        let sessionMemory = null;
-        try {
-          const memoryMod = await import(esmUrlFromSrc('utils', 'conversation-memory.mjs'));
-          const { updateSession, buildContextSummary } = memoryMod;
-          
-          // Update session with current message
-          updateSession(sessionId, userText, 'user');
-          
-          // Build context summary
-          sessionMemory = buildContextSummary(sessionId);
-        } catch (memoryError) {
-          console.error('Memory module error:', memoryError);
-        }
-        
-        // Build system prompt with Smaichan personality enabled
+        // Build system prompt
         systemPrompt = buildSystemPrompt({
           domain: domain,
           playbook: routingResult.playbookData,
@@ -451,12 +320,7 @@ else if (isRaw) {
             previousMessages: messages.slice(0, -1),
             session: sessionState
           },
-          model: model,
-          enableSmaichan: enableSmaichan,  // Use environment-controlled setting
-          pricingInfo: routingResult.pricingInfo,  // Pass pricing information
-          quote: routingResult.quote,  // Pass quote calculation
-          userMessage: userText,  // Pass user message for response length analysis
-          sessionMemory: sessionMemory  // Pass conversation memory
+          model: model
         });
 
         // Build input for Responses API
@@ -488,32 +352,17 @@ else if (isRaw) {
 
 // === OPENAI API CALL (common path) ===
 
-// Optimize token count based on message complexity
-let MIN_TOKENS = 1024;  // Default
-let optimizedTokens = MIN_TOKENS;
-
-// Adjust tokens based on complexity if available
-if (messageComplexity !== null && messageComplexity !== undefined) {
-  try {
-    const optimizerMod = await import(esmUrlFromSrc('utils', 'response-optimizer.mjs'));
-    const { getOptimizedModelParams } = optimizerMod;
-    const params = getOptimizedModelParams(messageComplexity);
-    optimizedTokens = params.max_tokens || MIN_TOKENS;
-    MIN_TOKENS = Math.min(optimizedTokens, MIN_TOKENS);
-  } catch (e) {
-    console.error('Failed to optimize params:', e);
-  }
-}
-
+// ▼ここから置き換え
+const MIN_TOKENS = 1024;                       // 下限を 1024 に引き上げ
 const wanted = Number(body?.max_output_tokens);
 
 const payload = {
   model,
   input,
-  text: { format: { type: 'text' } },
+  text: { format: { type: 'text' } },          // verbosity は外す
   max_output_tokens: Number.isFinite(wanted) && wanted > 0
-    ? Math.max(MIN_TOKENS, wanted)
-    : optimizedTokens  // Use optimized tokens instead of fixed MIN_TOKENS
+    ? Math.max(MIN_TOKENS, wanted)            // クライアント指定があっても下限保障
+    : MIN_TOKENS
 };
 
 // 通常チャットでは推論モードを使わない（reasoning トークンを食いにくくする）
@@ -660,35 +509,14 @@ if (!text) {
   };
 }
 
-    // Import emotion mapper and ensure emotion tag is present
-    let finalText = text;
-    let emotionId = null;
+    // Extract emotion tag if present
+    const emoMatch = text.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i);
+    let cleanText = text;
     
-    try {
-      const emotionMapperMod = await import(esmUrlFromSrc('utils', 'emotion-mapper.mjs'));
-      const { ensureEmotionTag, analyzeEmotion } = emotionMapperMod;
-      
-      // Ensure emotion tag is present
-      finalText = ensureEmotionTag(text);
-      
-      // Extract emotion tag for header
-      const emoMatch = finalText.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i);
-      if (emoMatch) {
-        emotionId = emoMatch[1];
-        // Remove tag from user-visible text
-        finalText = finalText.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '');
-      } else {
-        // Fallback: analyze text if no tag found
-        emotionId = analyzeEmotion(text, 'assistant');
-      }
-      
+    if (emoMatch) {
+      const emotionId = emoMatch[1];
+      cleanText = text.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '');
       headers.set('x-emo', emotionId);
-    } catch (emotionError) {
-      console.error('Emotion mapper error:', emotionError);
-      // Fallback to neutral emotion
-      emotionId = 'neutral';
-      headers.set('x-emo', emotionId);
-      finalText = text; // Use original text if emotion processing fails
     }
     
     // Return UI-compatible format
@@ -699,7 +527,7 @@ if (!text) {
         choices: [{
           message: {
             role: 'assistant',
-            content: finalText
+            content: cleanText
           },
           finish_reason: 'stop'
         }],

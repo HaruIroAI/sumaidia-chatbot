@@ -1,11 +1,15 @@
+# netlify.toml （リポジトリ直下）
+
 [build]
   command = "npm ci && npm run build"
   functions = "netlify/functions"
 
 [functions]
   node_bundler = "esbuild"
-  included_files = ["src/**", "data/**"]
+  # ESMファイル（src/**, data/**）をLambdaに確実に同梱する
+  included_files = ["src/**/*", "data/**/*"]
 
+# サイト全体のセキュリティヘッダ
 [[headers]]
   for = "/*"
   [headers.values]
@@ -13,11 +17,12 @@
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
 
+# ← ここがポイント：関数パスは /.netlify/functions/*
 [[headers]]
-  for = "/functions/*"
+  for = "/.netlify/functions/*"
   [headers.values]
     Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Headers = "Content-Type"
+    Access-Control-Allow-Headers = "Content-Type, X-Session-Id"
     Access-Control-Allow-Methods = "GET, POST, OPTIONS"
 
 [[headers]]

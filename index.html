@@ -860,6 +860,12 @@
         // Enhanced ChatGPT API Call with Context Awareness
         async function callChatGPT(userMessage) {
             try {
+                console.log('Calling ChatGPT API...', {
+                    isNetlify: isNetlify,
+                    hasApiKey: !!apiKey,
+                    message: userMessage.substring(0, 50) + '...'
+                });
+                
                 // 1. 文脈を分析
                 const contexts = analyzeContext(userMessage);
                 
@@ -932,10 +938,7 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 // 7. 現在のメッセージを追加
                 messages.push({ role: 'user', content: userMessage });
                 
-                // 8. API呼び出し設定
-                const isNetlify = window.location.hostname.includes('netlify.app') || 
-                                 window.location.hostname.includes('netlify.com');
-                
+                // 8. API呼び出し設定 (isNetlifyは既にグローバルで定義済み)
                 let apiUrl = 'https://api.openai.com/v1/chat/completions';
                 let headers = {
                     'Content-Type': 'application/json'
@@ -966,6 +969,9 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                     throw new Error(errorData.error?.message || 'API request failed');
                 }
                 
+                // Get emotion from response header
+                const emotionFromHeader = response.headers.get('x-emo');
+                
                 const data = await response.json();
                 
                 // JSONレスポンスの解析を試みる
@@ -974,18 +980,24 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 let emotion = null;
                 let intensity = null;
                 
-                // Extract emotion tag [[emo:id]] from the end of text (if toggle enabled)
+                // Priority 1: Use emotion from x-emo header
+                if (emotionFromHeader) {
+                    emotion = emotionFromHeader;
+                    console.log('Using emotion from header:', emotion);
+                }
+                
+                // Priority 2: Extract emotion tag [[emo:id]] from the end of text (if toggle enabled)
                 let emoTag = null;
                 let cleanContent = responseContent;
                 
-                if (window.__useModelHint) {
+                if (!emotion && window.__useModelHint) {
                     emoTag = (responseContent.match(/\[\[emo:([a-z0-9_-]+)\]\]$/i) || [])[1];
                     cleanContent = emoTag ? responseContent.replace(/\s*\[\[emo:[^\]]+\]\]$/i, '') : responseContent;
-                }
-                
-                // Use extracted emotion tag if found
-                if (emoTag && window.__useModelHint) {
-                    emotion = emoTag;
+                    
+                    if (emoTag) {
+                        emotion = emoTag;
+                        console.log('Using emotion from tag:', emotion);
+                    }
                 }
                 
                 // メッセージオブジェクトに追加情報が含まれているか確認
@@ -1009,27 +1021,63 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                 }
                 
                 // Always return clean content without emotion tag
-                responseContent = cleanContent;
+                responseContent = cleanContent || responseContent;
                 
-                // 感情情報がある場合は返す
-                if (emotion) {
-                    return {
-                        content: responseContent,
-                        emotion: emotion,
-                        intensity: intensity
-                    };
+                // Priority 3: Detect emotion from content if still not found
+                if (!emotion) {
+                    const detectedEmotion = detectEmotion(responseContent);
+                    emotion = detectedEmotion || 'neutral';
+                    console.log('Using detected/default emotion:', emotion);
                 }
                 
-                return responseContent;
+                // Always return object with emotion
+                return {
+                    content: responseContent,
+                    emotion: emotion || 'neutral',
+                    intensity: intensity || 0.8
+                };
                 
             } catch (error) {
                 console.error('ChatGPT API Error:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    userMessage: userMessage
+                });
+                
                 // エラー時は文脈に応じたフォールバック
                 const contexts = analyzeContext(userMessage);
-                if (contexts.includes('pricing')) {
-                    return 'あら〜、ちょっと調子悪いみたい💦 でも名刺は100枚3,000円〜、チラシはA4/1,000枚5,000円〜だよ！詳しくは直接お問い合わせして〜✨';
+                
+                // ビジネス相談の文脈を追加
+                if (userMessage.includes('売上') || userMessage.includes('売り上げ') || 
+                    userMessage.includes('困って') || userMessage.includes('相談')) {
+                    return {
+                        content: 'あら、大変だね💦 売上アップなら、印刷物でのPRが効果的だよ！チラシやDM、Web広告用バナーとか、一緒に戦略考えようか？✨',
+                        emotion: 'supportive'
+                    };
                 }
-                return null;
+                
+                if (contexts.includes('pricing')) {
+                    return {
+                        content: 'あら〜、ちょっと調子悪いみたい💦 でも名刺は100枚3,000円〜、チラシはA4/1,000枚5,000円〜だよ！詳しくは直接お問い合わせして〜✨',
+                        emotion: 'worried'
+                    };
+                }
+                
+                // ECサイトの文脈を確認
+                if (userMessage.includes('EC') || userMessage.includes('Amazon') || 
+                    userMessage.includes('ネットショップ')) {
+                    return {
+                        content: 'ECサイト制作だね！費用は規模によるけど、基本50万円〜、本格的なものなら300万円〜だよ。1ヶ月の納期ならスピード開発も可能！詳しく聞かせて✨',
+                        emotion: 'professional'
+                    };
+                }
+                
+                // デフォルトのエラーメッセージ
+                return {
+                    content: 'ごめんね、ちょっと調子が悪いみたい💦 もう一度話しかけてもらえる？',
+                    emotion: 'worried'
+                };
             }
         }
         
@@ -1207,9 +1255,45 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
         
         // Update avatar expression
         function updateAvatarExpression(expression) {
+            // Normalize expression names
+            const emotionMapping = {
+                'neutral': 'normal',
+                'greeting': 'happy',
+                'grateful': 'happy',
+                'friendly': 'happy',
+                'energetic': 'excited',
+                'playful': 'wink',
+                'confident': 'motivated',
+                'professional': 'normal',
+                'explaining': 'thinking',
+                'supportive': 'happy',
+                'farewell': 'happy',
+                'curious': 'thinking',
+                'proud': 'motivated',
+                'working': 'motivated',
+                'attentive': 'thinking',
+                'determined': 'motivated',
+                'worried': 'confused',
+                'sad': 'shy',
+                'embarrassed': 'shy',
+                'loving': 'happy',
+                'impressed': 'surprised',
+                'mischievous': 'wink',
+                'satisfied': 'happy',
+                'focused': 'thinking',
+                'cool': 'wink',
+                'star_eyes': 'excited',
+                'peace': 'happy',
+                'sparkle': 'excited'
+            };
+            
+            // Map expression to available avatar class
+            const mappedExpression = emotionMapping[expression] || expression || 'normal';
+            console.log(`Mapping emotion: ${expression} -> ${mappedExpression}`);
+            
             const avatars = document.querySelectorAll('.smaichan-avatar');
             avatars.forEach(avatar => {
-                avatar.className = `smaichan-avatar smaichan-avatar-${expression}`;
+                avatar.className = `smaichan-avatar smaichan-avatar-${mappedExpression}`;
             });
             
             // Hook for future expression engine enhancements
@@ -1235,9 +1319,43 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
                     <div class="message-content">${content}</div>
                 `;
             } else {
-                updateAvatarExpression(expression);
+                // Ensure expression is valid and update avatar
+                const validExpression = expression || 'normal';
+                updateAvatarExpression(validExpression);
+                
+                // Get mapped expression for avatar class
+                const emotionMapping = {
+                    'neutral': 'normal',
+                    'greeting': 'happy',
+                    'grateful': 'happy',
+                    'friendly': 'happy',
+                    'energetic': 'excited',
+                    'playful': 'wink',
+                    'confident': 'motivated',
+                    'professional': 'normal',
+                    'explaining': 'thinking',
+                    'supportive': 'happy',
+                    'farewell': 'happy',
+                    'curious': 'thinking',
+                    'proud': 'motivated',
+                    'working': 'motivated',
+                    'attentive': 'thinking',
+                    'determined': 'motivated',
+                    'worried': 'confused',
+                    'sad': 'shy',
+                    'embarrassed': 'shy',
+                    'loving': 'happy',
+                    'impressed': 'surprised',
+                    'mischievous': 'wink',
+                    'satisfied': 'happy',
+                    'focused': 'thinking',
+                    'cool': 'wink'
+                };
+                
+                const mappedExpression = emotionMapping[validExpression] || validExpression || 'normal';
+                
                 messageDiv.innerHTML = `
-                    <div class="smaichan-avatar smaichan-avatar-${expression} avatar"></div>
+                    <div class="smaichan-avatar smaichan-avatar-${mappedExpression} avatar"></div>
                     <div class="message-content">${content}</div>
                 `;
             }
@@ -1290,9 +1408,32 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             }
             
             if (response == null) {
-                // Use offline response
-                response = window.generateResponse ? window.generateResponse(userMessage) : 
-                    '素敵なメッセージありがとう〜！印刷のこと何でも聞いてね💕';
+                console.warn('API returned null, using fallback response');
+                
+                // Try offline response first
+                if (window.generateResponse) {
+                    response = window.generateResponse(userMessage);
+                } else {
+                    // Context-aware fallback
+                    if (userMessage.includes('売上') || userMessage.includes('売り上げ') || 
+                        userMessage.includes('困って') || userMessage.includes('相談')) {
+                        response = {
+                            content: '売上アップのご相談だね！印刷物でのPRは効果的だよ〜✨ チラシやDM、ポスターで集客UP！どんなお店や商品をPRしたいか教えて💕',
+                            emotion: 'supportive'
+                        };
+                    } else if (userMessage.includes('印刷') || userMessage.includes('名刺') || 
+                              userMessage.includes('チラシ')) {
+                        response = {
+                            content: '印刷のご相談だね！どんなものを作りたいか詳しく教えて〜✨ サイズや枚数、いつまでに必要かも教えてもらえると見積もり出せるよ💕',
+                            emotion: 'professional'
+                        };
+                    } else {
+                        response = {
+                            content: 'ごめんね、ちょっと接続が不安定みたい💦 もう一度お話し聞かせて？印刷のことなら何でも相談してね✨',
+                            emotion: 'worried'
+                        };
+                    }
+                }
             }
             
             if (typeof response === 'string' && response.trim() === '') {
@@ -1317,14 +1458,37 @@ ${JSON.stringify(conversationSummary.customerInfo, null, 2)}
             let emotionSource = responseEmotion ? 'model' : 'engine';
             
             if (!finalEmotion) {
-                const { id } = window.expressionEngine.select({
-                    text: responseText,
-                    role: 'assistant',
-                    contexts: analyzeContext(responseText),
-                    lastId: window.__lastExpressionId || null
-                });
-                window.__lastExpressionId = id;
-                finalEmotion = id;
+                // Try to detect emotion from expression engine
+                if (window.expressionEngine && window.expressionEngine.select) {
+                    const { id } = window.expressionEngine.select({
+                        text: responseText,
+                        role: 'assistant',
+                        contexts: analyzeContext(responseText),
+                        lastId: window.__lastExpressionId || null
+                    });
+                    window.__lastExpressionId = id;
+                    finalEmotion = id;
+                }
+                
+                // If still no emotion, use default
+                if (!finalEmotion) {
+                    finalEmotion = 'neutral';
+                    console.log('Using default emotion: neutral');
+                }
+            }
+            
+            // Validate emotion exists in emotion map
+            const validEmotions = ['happy', 'thinking', 'confused', 'wink', 'excited', 'shy', 
+                                   'sleepy', 'surprised', 'motivated', 'neutral', 'normal',
+                                   'greeting', 'grateful', 'friendly', 'energetic', 'playful',
+                                   'confident', 'professional', 'explaining', 'supportive',
+                                   'farewell', 'curious', 'proud', 'working', 'attentive',
+                                   'worried', 'sad', 'embarrassed', 'determined', 'loving',
+                                   'impressed', 'mischievous', 'satisfied', 'focused', 'cool'];
+            
+            if (!validEmotions.includes(finalEmotion)) {
+                console.log(`Unknown emotion "${finalEmotion}", using neutral`);
+                finalEmotion = 'neutral';
             }
             
             // Send metrics (fire-and-forget)
