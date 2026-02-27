@@ -1,0 +1,21 @@
+{
+  "$schema": "./schemas/status.schema.json",
+  "phase": "Closed",
+  "updatedAt": "2026-02-27T00:00:00Z",
+  "closedAt": "2026-02-27T00:00:00Z",
+  "closedReason": "60万円（税込）入金確認済み。精算完了メール送信済み。",
+  "actors": {
+    "codex": {
+      "branch": "main",
+      "progress": 1.0,
+      "next": []
+    },
+    "claude": {
+      "branch": "main",
+      "progress": 1.0,
+      "next": []
+    }
+  },
+  "blockers": [],
+  "lastHandoff": null
+}
