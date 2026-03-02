@@ -1,0 +1,10 @@
+{
+  "period": "2025夏",
+  "department": "営業",
+  "members": [
+    { "code": "KJ", "role": "member", "scores": { "general": {} } },
+    { "code": "KN", "role": "member", "scores": { "general": {} } },
+    { "code": "TGL", "role": "manager", "scores": { "general": {}, "manager": {}, "monthlyDept": { "months": { "3": 0, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "rule": "dept-monthly-conversion-v1" } } },
+    { "code": "YGLH", "role": "manager", "scores": { "general": {}, "manager": {}, "monthlyDept": { "months": { "3": 0, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "rule": "dept-monthly-conversion-v1" } } }
+  ]
+}

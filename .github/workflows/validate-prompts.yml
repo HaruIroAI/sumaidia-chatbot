@@ -1,0 +1,67 @@
+name: Validate Auto-Dev Prompts
+
+on:
+  pull_request:
+    paths:
+      - '.auto-dev/templates/**'
+      - '.auto-dev/registry.yml'
+      - '.auto-dev/scripts/validate.sh'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - '.auto-dev/templates/**'
+      - '.auto-dev/registry.yml'
+      - '.auto-dev/scripts/validate.sh'
+
+jobs:
+  validate-prompts:
+    name: Validate Prompt Templates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Make validate.sh executable
+        run: chmod +x .auto-dev/scripts/validate.sh
+
+      - name: Run prompt validation
+        run: ./.auto-dev/scripts/validate.sh
+
+      - name: List available prompts
+        if: success()
+        run: |
+          chmod +x .auto-dev/scripts/list.sh
+          ./.auto-dev/scripts/list.sh
+
+      - name: Comment on PR (Success)
+        if: success() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ **Auto-Dev Prompt Validation PASSED**\n\nAll prompt templates are in sync with registry.yml.'
+            })
+
+      - name: Comment on PR (Failure)
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '❌ **Auto-Dev Prompt Validation FAILED**\n\nPlease check the workflow logs for details.\n\nCommon issues:\n- Template file modified without updating checksum in registry.yml\n- Template file missing\n- registry.yml syntax error'
+            })
