@@ -1,0 +1,44 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./scripts/create-gate1-review-request.sh:*)"
+    ]
+  },
+  "commands": {
+    "enabled": true,
+    "directory": ".claude/commands"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".auto-dev/hooks/session-start-enforce.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".auto-dev/hooks/session-start-enforce.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./scripts/hooks/post-edit.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
