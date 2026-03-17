@@ -40,3 +40,22 @@ Temporary Items
 # Dependencies
 node_modules/
 package-lock.json
+# BEGIN AUTO-DEV REPO HYGIENE
+.codex/
+.codex-alt-test/
+.claude/state/*.json
+.claude/memory/session-log.md
+.auto-dev/current-task.json
+.auto-dev/logs/*.json
+.auto-dev/logs/*.jsonl
+.DS_Store
+__pycache__/
+*.pyc
+.env.local
+.env.*.local
+.wrangler/
+backup-captures/
+data/nerfstudio/
+.agent/
+.agents/
+# END AUTO-DEV REPO HYGIENE

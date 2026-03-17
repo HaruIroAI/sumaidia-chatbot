@@ -8,7 +8,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 GENERATOR="$PROJECT_ROOT/scripts/create-gate1-review-request.sh"
 EXECPLAN="$PROJECT_ROOT/plans/active/TASK-0035-orchestration-evolution.md"
 
-OUTPUT=$(cd "$PROJECT_ROOT" && "$GENERATOR" "$EXECPLAN" --commit deadbee --dry-run)
+OUTPUT=$(cd "$PROJECT_ROOT" && AUTO_DEV_REPO_HYGIENE_SKIP=1 "$GENERATOR" "$EXECPLAN" --commit deadbee --dry-run)
 
 if ! echo "$OUTPUT" | grep -q "\[Gate 1 Round 8\] TASK-0035"; then
   echo "FAIL: title does not include inferred round/task"

@@ -201,6 +201,14 @@ STATUS=$(infer_status "$EXECPLAN_PATH")
 GATE1_DOC_PATH="$PROJECT_ROOT/docs/GATE1_REVIEW_OPERATIONS.md"
 GATE1_DOC_REL="$(repo_relative "$GATE1_DOC_PATH")"
 
+if [[ "${AUTO_DEV_REPO_HYGIENE_SKIP:-0}" != "1" ]] && [[ -f "$PROJECT_ROOT/scripts/repo-hygiene-check.py" ]]; then
+  if ! REPO_HYGIENE_OUTPUT=$(cd "$PROJECT_ROOT" && python3 ./scripts/repo-hygiene-check.py --format summary --write-cleanup-hints --require-clean-or-followup 2>&1); then
+    echo "Repo hygiene gate failed. Resolve dirty state or register follow-up before creating a review request." >&2
+    echo "$REPO_HYGIENE_OUTPUT" >&2
+    exit 2
+  fi
+fi
+
 ISSUE_TITLE="[Gate 1 Round $ROUND] $TASK_ID ${TASK_TITLE} ExecPlan レビュー"
 ISSUE_BODY=$(build_body "$EXECPLAN_REL" "$ROUND" "$COMMIT_HASH" "$STATUS" "$GATE1_DOC_REL")
 

@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./scripts/create-gate1-review-request.sh:*)"
+      "Bash(./scripts/create-gate1-review-request.sh:*)",
+      "Bash(python3 ./scripts/repo-hygiene-check.py:*)",
+      "Bash(./scripts/repo-hygiene-followup.sh:*)"
     ]
   },
   "commands": {
@@ -36,6 +38,17 @@
           {
             "type": "command",
             "command": "./scripts/hooks/post-edit.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".auto-dev/hooks/session-end-summary.sh"
           }
         ]
       }

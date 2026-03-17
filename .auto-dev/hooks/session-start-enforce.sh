@@ -72,11 +72,16 @@ ACTIVE_PLANS=$(ls plans/active/*.md 2>/dev/null | wc -l | tr -d ' ')
 PREV_CHANGED_FILES=""
 PREV_PENDING_TESTS=""
 PREV_SUMMARY=""
+REPO_HYGIENE_SUMMARY=""
 
 if [ -f "$SESSION_FILE" ] && command -v jq &>/dev/null; then
   PREV_CHANGED_FILES=$(jq -r '.changed_files[:5] | .[]?' "$SESSION_FILE" 2>/dev/null | head -5)
   PREV_PENDING_TESTS=$(jq -r '.pending_recommended_tests[:3] | .[]?' "$SESSION_FILE" 2>/dev/null | head -3)
   PREV_SUMMARY=$(jq -r '.last_session_summary // ""' "$SESSION_FILE" 2>/dev/null)
+fi
+
+if [ -f "scripts/repo-hygiene-check.py" ]; then
+  REPO_HYGIENE_SUMMARY=$(python3 scripts/repo-hygiene-check.py --format summary --write-cleanup-hints 2>/dev/null || true)
 fi
 
 # Git state
@@ -215,6 +220,12 @@ else
   echo "  (not a git repository)"
 fi
 echo ""
+
+if [ -n "$REPO_HYGIENE_SUMMARY" ]; then
+  echo "Repo Hygiene:"
+  echo "$REPO_HYGIENE_SUMMARY" | sed 's/^/  /'
+  echo ""
+fi
 
 # Previous session context
 if [ -n "$PREV_CHANGED_FILES" ]; then

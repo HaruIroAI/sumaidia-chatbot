@@ -1,0 +1,39 @@
+{
+  "version": "1.0.0",
+  "local_artifact_patterns": [
+    ".codex/**",
+    ".codex-alt-test/**",
+    "**/.DS_Store",
+    "**/__pycache__/**",
+    "**/*.pyc",
+    "**/.env.local",
+    "**/.env.*.local",
+    "**/.wrangler/**",
+    "**/backup-captures/**",
+    "**/data/nerfstudio/**",
+    "**/.claude/state/*.json",
+    "**/.claude/memory/session-log.md",
+    "**/.auto-dev/current-task.json",
+    "**/.auto-dev/logs/*.json",
+    "**/.auto-dev/logs/*.jsonl",
+    "**/.agent/**",
+    "**/.agents/**"
+  ],
+  "non_blocking_local_artifact_patterns": [
+    "**/.claude/state/*.json",
+    "**/.claude/memory/session-log.md",
+    "**/.auto-dev/current-task.json",
+    "**/.auto-dev/logs/*.json",
+    "**/.auto-dev/logs/*.jsonl"
+  ],
+  "tracked_local_artifact_patterns": [
+    "projects/automated-dev-system/dashboard/dev.db"
+  ],
+  "delegated_repo_roots": [
+    "projects/3d-virtual-tour",
+    "projects/harubook",
+    "projects/sumaidia",
+    "projects/独立生活基盤"
+  ],
+  "repo_structure_paths": []
+}
