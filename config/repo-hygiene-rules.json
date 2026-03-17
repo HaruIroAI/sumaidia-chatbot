@@ -26,9 +26,7 @@
     "**/.auto-dev/logs/*.json",
     "**/.auto-dev/logs/*.jsonl"
   ],
-  "tracked_local_artifact_patterns": [
-    "projects/automated-dev-system/dashboard/dev.db"
-  ],
+  "tracked_local_artifact_patterns": ["projects/automated-dev-system/dashboard/dev.db"],
   "delegated_repo_roots": [
     "projects/3d-virtual-tour",
     "projects/harubook",

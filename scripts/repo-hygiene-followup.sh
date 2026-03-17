@@ -5,7 +5,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-FOLLOWUPS_FILE="$PROJECT_ROOT/.claude/state/repo-hygiene-followups.json"
+REPO_ROOT="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null || echo "$PROJECT_ROOT")"
+FOLLOWUPS_FILE="$REPO_ROOT/.claude/state/repo-hygiene-followups.json"
 
 usage() {
   cat <<'EOF'
