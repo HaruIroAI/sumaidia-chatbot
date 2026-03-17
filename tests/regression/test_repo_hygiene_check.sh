@@ -24,7 +24,7 @@ git commit -m "init" >/dev/null
 printf 'local change\n' >> tracked/dev.db
 printf 'tmp\n' > .codex/state.json
 mkdir -p projects/external/.git
-printf 'delegated\n' > projects/external/file.txt
+printf 'delegated\n' > projects/external/画像.png
 
 cat > "$CONFIG_PATH" <<'EOF'
 {

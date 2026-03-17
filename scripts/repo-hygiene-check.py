@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import fnmatch
 import json
 import subprocess
@@ -110,9 +111,14 @@ def resolve_hints_path(repo_root: Path) -> Path:
 
 
 def normalize_status_path(raw_path: str) -> str:
-    if " -> " in raw_path:
-        return raw_path.split(" -> ", 1)[1]
-    return raw_path
+    path = raw_path.split(" -> ", 1)[1] if " -> " in raw_path else raw_path
+    if path.startswith('"') and path.endswith('"'):
+        decoded = ast.literal_eval(path)
+        try:
+            return decoded.encode("latin-1", "surrogateescape").decode("utf-8", "surrogateescape")
+        except UnicodeError:
+            return decoded
+    return path
 
 
 def parse_status(repo_root: Path) -> list[tuple[str, str]]:
