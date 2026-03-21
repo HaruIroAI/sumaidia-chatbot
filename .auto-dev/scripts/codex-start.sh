@@ -81,7 +81,7 @@ fi
 output_file="$(mktemp)"
 trap 'rm -f "$output_file"' EXIT
 
-codex exec --full-auto -m codex-mini-latest -o "$output_file" "$review_prompt" >/tmp/codex-review.log 2>&1 || true
+codex exec --full-auto -m gpt-5-codex -o "$output_file" "$review_prompt" >/tmp/codex-review.log 2>&1 || true
 review_output="$(cat "$output_file" 2>/dev/null || true)"
 
 if [[ -z "$review_output" ]]; then
