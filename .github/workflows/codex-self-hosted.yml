@@ -48,6 +48,7 @@ jobs:
           codex --version
 
       - name: Run automated review
+        id: review
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -60,7 +61,7 @@ jobs:
           bash .auto-dev/scripts/codex-start.sh --review-only
 
       - name: Evaluate loop disposition
-        if: always()
+        if: always() && steps.review.outcome == 'success'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
