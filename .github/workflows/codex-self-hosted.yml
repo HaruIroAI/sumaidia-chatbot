@@ -39,7 +39,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Check review secret
+        id: secret_check
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -n "${OPENAI_API_KEY:-}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report missing OPENAI_API_KEY
+        if: steps.secret_check.outputs.ready != 'true'
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number('${{ steps.issue.outputs.number }}'),
+              body: [
+                '## ⚠️ Codex Review Blocked',
+                '',
+                '`OPENAI_API_KEY` is not configured for this repository.',
+                'Configure the secret, then re-run `Codex Auto-Trigger` or the review issue.',
+                '',
+                '---',
+                '_Powered by Auto-Dev System_',
+              ].join('\\n'),
+            });
+
       - name: Ensure Codex CLI
+        if: steps.secret_check.outputs.ready == 'true'
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           if ! command -v codex >/dev/null 2>&1; then
@@ -49,6 +82,7 @@ jobs:
 
       - name: Run automated review
         id: review
+        if: steps.secret_check.outputs.ready == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -89,16 +123,30 @@ jobs:
         uses: actions/github-script@v8
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+          SECRET_READY: ${{ steps.secret_check.outputs.ready }}
           TASK_ID: ${{ steps.issue.outputs.task_id }}
           WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const issueNumber = Number(process.env.ISSUE_NUMBER);
+            const secretReady = process.env.SECRET_READY === 'true';
             const status = '${{ job.status }}';
             const taskId = process.env.TASK_ID;
             const workflowUrl = process.env.WORKFLOW_URL;
-            const body = status === 'success'
+            const body = !secretReady
+              ? [
+                  '## ℹ️ Codex Review Waiting For Secrets',
+                  '',
+                  '- Task ID: ' + taskId,
+                  '- Missing secret: `OPENAI_API_KEY`',
+                  '',
+                  'The review lane stopped safely before running Codex.',
+                  '',
+                  '---',
+                  '_Powered by Auto-Dev System_',
+                ].join('\\n')
+              : status === 'success'
               ? [
                   '## ✅ Codex Review Completed',
                   '',

@@ -46,7 +46,39 @@ jobs:
             echo "round=1" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Check implement secret
+        id: secret_check
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report missing ANTHROPIC_API_KEY
+        if: steps.secret_check.outputs.ready != 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number('${{ steps.context.outputs.issue_number }}'),
+              body: [
+                '## ⚠️ Claude Implementation Blocked',
+                '',
+                '`ANTHROPIC_API_KEY` is not configured for this repository.',
+                'Configure the secret, then re-run the implementation lane.',
+                '',
+                '---',
+                '_Powered by Auto-Dev System_',
+              ].join('\\n'),
+            });
+
       - name: Acknowledge request
+        if: steps.secret_check.outputs.ready == 'true'
         uses: actions/github-script@v8
         with:
           script: |
@@ -68,11 +100,13 @@ jobs:
             });
 
       - name: Setup Python
+        if: steps.secret_check.outputs.ready == 'true'
         uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Run Claude Code Action
+        if: steps.secret_check.outputs.ready == 'true'
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -100,7 +134,7 @@ jobs:
             If this run was triggered by `claude-fix-requested`, assume you are responding to Codex review findings and make only the minimal corrective changes needed.
 
       - name: Redispatch Codex review
-        if: github.event_name == 'repository_dispatch' && success()
+        if: github.event_name == 'repository_dispatch' && success() && steps.secret_check.outputs.ready == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.context.outputs.issue_number }}
@@ -122,12 +156,24 @@ jobs:
         uses: actions/github-script@v8
         env:
           LOOP_MESSAGE: ${{ github.event_name == 'repository_dispatch' && 'Codex re-review has been re-dispatched.' || 'If a codex-review issue was created, the review lane will continue automatically.' }}
+          SECRET_READY: ${{ steps.secret_check.outputs.ready }}
         with:
           script: |
             const issueNumber = Number('${{ steps.context.outputs.issue_number }}');
+            const secretReady = process.env.SECRET_READY === 'true';
             const status = '${{ job.status }}';
             const loopMessage = process.env.LOOP_MESSAGE;
-            const body = status === 'success'
+            const body = !secretReady
+              ? [
+                  '## ℹ️ Claude Implementation Waiting For Secrets',
+                  '',
+                  'The implementation lane stopped safely before invoking Claude.',
+                  'Missing secret: `ANTHROPIC_API_KEY`',
+                  '',
+                  '---',
+                  '_Powered by Auto-Dev System_',
+                ].join('\\n')
+              : status === 'success'
               ? [
                   '## ✅ Claude Code Implementation Finished',
                   '',
