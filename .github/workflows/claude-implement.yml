@@ -1,0 +1,155 @@
+name: Claude Code Implement
+
+on:
+  issue_comment:
+    types: [created]
+  repository_dispatch:
+    types: [claude-fix-requested]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+  id-token: write
+
+concurrency:
+  group: claude-implement-${{ github.event.issue.number || github.event.client_payload.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'issue_comment' &&
+       contains(github.event.comment.body, '@claude') &&
+       (contains(github.event.comment.body, '/autodev') || contains(github.event.comment.body, '/autodev-implement')) &&
+       (github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR')) ||
+      (github.event_name == 'repository_dispatch' && github.event.action == 'claude-fix-requested')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve issue metadata
+        id: context
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "issue_number=${{ github.event.client_payload.issue_number }}" >> "$GITHUB_OUTPUT"
+            echo "round=${{ github.event.client_payload.round || '1' }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "issue_number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+            echo "round=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Acknowledge request
+        uses: actions/github-script@v8
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number('${{ steps.context.outputs.issue_number }}'),
+              body: [
+                '## Claude Code Implementation Started',
+                '',
+                '- Issue: #${{ steps.context.outputs.issue_number }}',
+                '- Repo root implementation lane active',
+                '',
+                'Claude is applying the requested changes now.',
+                '',
+                '---',
+                '_Powered by Auto-Dev System_',
+              ].join('\\n'),
+            });
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Run Claude Code Action
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          allowed_bots: github-actions[bot],github-actions
+          additional_permissions: |
+            actions: read
+          claude_args: |
+            --allowedTools "Read,Write,Edit,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(node:*),Bash(python:*),Bash(cd:*),Grep,Glob"
+            --max-turns 15
+          prompt: |
+            You are implementing GitHub Issue #${{ steps.context.outputs.issue_number }} in the repository root.
+
+            First read the issue SSOT:
+            ```bash
+            gh issue view ${{ steps.context.outputs.issue_number }} --json title,body,labels
+            ```
+
+            Requirements:
+            - Work only inside this repository
+            - Respect existing plans in `plans/active/` if the issue references them
+            - Run the strongest repo-local validation you can
+            - If you create a review issue, use the `codex-review` label so the automated review lane picks it up
+
+            If this run was triggered by `claude-fix-requested`, assume you are responding to Codex review findings and make only the minimal corrective changes needed.
+
+      - name: Redispatch Codex review
+        if: github.event_name == 'repository_dispatch' && success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.context.outputs.issue_number }}
+          REPO: ${{ github.repository }}
+          CURRENT_ROUND: ${{ steps.context.outputs.round }}
+        run: |
+          NEXT_ROUND=$(( CURRENT_ROUND + 1 ))
+          curl -sS --fail -X POST \
+            "https://api.github.com/repos/${REPO}/dispatches" \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/json" \
+            -d "{\"event_type\":\"codex-review-requested\",\"client_payload\":{\"issue_number\":${ISSUE_NUMBER},\"issue_url\":\"https://github.com/${REPO}/issues/${ISSUE_NUMBER}\",\"round_counter\":${NEXT_ROUND}}}" \
+            > /dev/null
+
+      - name: Post completion status
+        if: always()
+        uses: actions/github-script@v8
+        env:
+          LOOP_MESSAGE: ${{ github.event_name == 'repository_dispatch' && 'Codex re-review has been re-dispatched.' || 'If a codex-review issue was created, the review lane will continue automatically.' }}
+        with:
+          script: |
+            const issueNumber = Number('${{ steps.context.outputs.issue_number }}');
+            const status = '${{ job.status }}';
+            const loopMessage = process.env.LOOP_MESSAGE;
+            const body = status === 'success'
+              ? [
+                  '## ✅ Claude Code Implementation Finished',
+                  '',
+                  'Implementation lane completed successfully.',
+                  '',
+                  loopMessage,
+                  '',
+                  '---',
+                  '_Powered by Auto-Dev System_',
+                ].join('\\n')
+              : [
+                  '## ⚠️ Claude Code Implementation Status',
+                  '',
+                  'Implementation lane finished with status: **' + status + '**',
+                  '',
+                  '---',
+                  '_Powered by Auto-Dev System_',
+                ].join('\\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body,
+            });
