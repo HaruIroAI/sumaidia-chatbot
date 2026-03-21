@@ -23,7 +23,7 @@ jobs:
     concurrency:
       group: codex-auto-trigger-${{ github.event.issue.number || inputs.issue_number }}
       cancel-in-progress: true
-    runs-on: [self-hosted, macOS, ARM64]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Extract metadata
