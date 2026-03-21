@@ -115,6 +115,7 @@ jobs:
           additional_permissions: |
             actions: read
           claude_args: |
+            --model haiku
             --allowedTools "Read,Write,Edit,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(node:*),Bash(python:*),Bash(cd:*),Grep,Glob"
             --max-turns 15
           prompt: |
