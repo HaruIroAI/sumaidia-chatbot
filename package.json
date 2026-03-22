@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "export:demo": "node scripts/run-with-timeout.mjs 60 \"tsx scripts/export-demo.ts\"",
     "e2e": "CI=1 node scripts/run-with-timeout.mjs 90 \"vitest run tests/excel-export.e2e.spec.ts -t 'excel-export' --reporter=basic\"",
