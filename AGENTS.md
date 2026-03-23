@@ -20,6 +20,13 @@
 - 成果物の URL・接続情報を変更しない
 - 石光社長から連絡が来た場合: 新しい書面契約＋着手金入金を先行させる（lessons-learned 参照）
 
+## 自動継続 / 夜間実行ルール
+
+- 参照・棚卸し・再開準備の作業では、途中報告や progress update を non-blocking telemetry として扱い、ユーザー応答待ちの handoff point にしない
+- 未完了の調査 / docs update / restart prep step が残っている限り stop せずに続行する
+- 夜間実行 / unattended run では、最終完了時または hard blocker 発生時だけユーザーへ報告する
+- hard blocker は新規契約判断、secret / auth / permission 不足、不可逆な方式分岐、競合する user edits、retry / rollback を使い切った外部障害に限る
+
 ## 成果物（参照用）
 
 - チャットボット: https://cute-frangipane-efe657.netlify.app/（Netlify 稼働中・保守なし）
