@@ -32,3 +32,10 @@
 2. STATUS.md と ADR-close-project.md を再確認
 3. HR評価システムの残タスク（実データ投入）を ExecPlan 化
 4. 新しい TASK-XXXX を作成してから着手
+
+## Claude Final Approval Handoff
+
+- `codex-review-done` label が付いた `codex-review` Issue では `Claude Final Approval Handoff` workflow が自動起動する
+- Claude Code final approval prompt は元 issue に自動投稿される
+- 同じ review issue に対する handoff comment は idempotent に 1 件だけ維持される
+
