@@ -1,0 +1,74 @@
+name: Claude Final Approval Handoff
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      review_issue_number:
+        description: Codex review issue number
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  handoff:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.action == 'labeled' &&
+       github.event.label.name == 'codex-review-done' &&
+       contains(github.event.issue.labels.*.name, 'codex-review'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve review issue
+        id: review_issue
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "number=${{ inputs.review_issue_number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch remote branches
+        run: |
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Emit Claude final approval prompt
+        id: handoff
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          REVIEW_ISSUE_NUMBER: ${{ steps.review_issue.outputs.number }}
+        run: |
+          output="$(bash .auto-dev/scripts/emit-claude-final-approval-handoff.sh \
+            --repo "$REPO" \
+            --review-issue "$REVIEW_ISSUE_NUMBER")"
+          printf '%s\n' "$output"
+          handoff_comment_url="$(printf '%s\n' "$output" | awk -F= '/^handoff_comment_url=/{print $2}')"
+          target_issue="$(printf '%s\n' "$output" | awk -F= '/^target_issue=/{print $2}')"
+          created="$(printf '%s\n' "$output" | awk -F= '/^created=/{print $2}')"
+          echo "handoff_comment_url=${handoff_comment_url}" >> "$GITHUB_OUTPUT"
+          echo "target_issue=${target_issue}" >> "$GITHUB_OUTPUT"
+          echo "created=${created}" >> "$GITHUB_OUTPUT"
+
+      - name: Close review issue
+        if: steps.handoff.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          REVIEW_ISSUE_NUMBER: ${{ steps.review_issue.outputs.number }}
+          TARGET_ISSUE: ${{ steps.handoff.outputs.target_issue }}
+          HANDOFF_COMMENT_URL: ${{ steps.handoff.outputs.handoff_comment_url }}
+        run: |
+          gh issue close "$REVIEW_ISSUE_NUMBER" --repo "$REPO" --comment \
+            "Claude final approval handoff has been posted to #${TARGET_ISSUE}. ${HANDOFF_COMMENT_URL}" \
+            || true
