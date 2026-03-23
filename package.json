@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "scripts": {
     "export:demo": "node scripts/run-with-timeout.mjs 60 \"tsx scripts/export-demo.ts\"",
