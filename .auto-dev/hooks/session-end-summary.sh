@@ -8,6 +8,7 @@ LOG_DIR=".auto-dev/logs"
 EXPERIENCE_DIR=".auto-dev/experience"
 STATE_DIR=".claude/state"
 MEMORY_DIR=".claude/memory"
+REPORT_GATE_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/report-gate.sh"
 
 mkdir -p "$LOG_DIR" "$EXPERIENCE_DIR/stats" "$STATE_DIR" "$MEMORY_DIR" 2>/dev/null
 
@@ -147,6 +148,17 @@ fi
 # ============================================
 # Output session summary
 # ============================================
+
+REPORT_ALLOWED=0
+if [ -x "$REPORT_GATE_SCRIPT" ]; then
+  REPORT_ALLOWED=$(
+    "$REPORT_GATE_SCRIPT" check | awk -F= '/^allowed=/{print $2}' | tail -1
+  )
+fi
+
+if [ "${REPORT_ALLOWED:-0}" != "1" ]; then
+  exit 0
+fi
 
 echo ""
 echo "========================================"

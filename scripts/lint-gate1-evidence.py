@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Lint Gate 1 evidence blocks in ExecPlans.
 
-This guard catches the specific review-loop pattern where relationship-heavy
-predicates are "proven" with grep/jq style existence checks instead of a
-verify script or smoke test.
+Guards:
+  1. relation-heavy predicates must use verify script / smoke test (not grep/jq)
+  2. RTM: every DoD must have an evidence command
+  3. subjective language in DoD predicates (warning)
+  4. relative paths in evidence commands (warning)
+  5. compound conditions in DoD predicates (warning)
 """
 
 from __future__ import annotations
@@ -13,6 +16,13 @@ import re
 import sys
 from pathlib import Path
 
+
+SUBJECTIVE_WORDS = re.compile(
+    r"(適切に|確認できる|更新されている|正しく|十分に|適切な|きちんと|うまく|良い形で)",
+    re.IGNORECASE,
+)
+COMPOUND_WORDS = re.compile(r"(かつ|および|ならびに|\band\b|\bAND\b)")
+RELATIVE_PATH_PATTERN = re.compile(r'(?:^|\s|["\'])(\.{1,2}/\S+)')
 
 RELATION_KEYWORDS = (
     "same payload",
@@ -114,9 +124,16 @@ def uses_script_evidence(command: str) -> bool:
     return bool(SCRIPT_EVIDENCE_PATTERN.search(command))
 
 
-def lint_file(path: Path) -> list[str]:
+Finding = dict[str, object]
+
+
+def _finding(severity: str, label: str, line_number: int, message: str) -> Finding:
+    return {"severity": severity, "label": label, "line": line_number, "message": message}
+
+
+def lint_file(path: Path) -> list[Finding]:
     lines = path.read_text(encoding="utf-8").splitlines()
-    errors: list[str] = []
+    findings: list[Finding] = []
 
     for block in iter_dod_blocks(lines):
         predicate = str(block["predicate"])
@@ -124,29 +141,51 @@ def lint_file(path: Path) -> list[str]:
         label = str(block["label"])
         line_number = int(block["line_number"])
 
-        if not is_relation_heavy(predicate):
-            continue
-
+        # --- RTM: every DoD must have an evidence command (error) ---
         if not command:
-            errors.append(
-                f"{label} line {line_number}: relation-heavy predicate has no evidence command."
-            )
+            findings.append(_finding(
+                "error", label, line_number,
+                "RTM violation: DoD has no evidence command."
+            ))
             continue
 
-        if uses_simple_evidence(command):
-            errors.append(
-                f"{label} line {line_number}: relation-heavy predicate uses grep/jq style evidence. "
-                "Use a verify script or smoke test."
-            )
-            continue
+        # --- relation-heavy predicate checks (existing, error) ---
+        if is_relation_heavy(predicate):
+            if uses_simple_evidence(command):
+                findings.append(_finding(
+                    "error", label, line_number,
+                    "relation-heavy predicate uses grep/jq style evidence. Use a verify script or smoke test."
+                ))
+            elif not uses_script_evidence(command):
+                findings.append(_finding(
+                    "error", label, line_number,
+                    "relation-heavy predicate is not backed by a verify script or smoke test command."
+                ))
 
-        if not uses_script_evidence(command):
-            errors.append(
-                f"{label} line {line_number}: relation-heavy predicate is not backed by a verify script "
-                "or smoke test command."
-            )
+        # --- subjective language in predicate (warning) ---
+        if SUBJECTIVE_WORDS.search(predicate):
+            findings.append(_finding(
+                "warning", label, line_number,
+                f"subjective language in predicate: {SUBJECTIVE_WORDS.search(predicate).group(0)!r}. "
+                "Use state-based wording only."
+            ))
 
-    return errors
+        # --- relative path in evidence command (warning) ---
+        if RELATIVE_PATH_PATTERN.search(command):
+            findings.append(_finding(
+                "warning", label, line_number,
+                "relative path in evidence command. Use absolute path instead."
+            ))
+
+        # --- compound condition in predicate (warning) ---
+        if COMPOUND_WORDS.search(predicate):
+            findings.append(_finding(
+                "warning", label, line_number,
+                f"compound condition in predicate: {COMPOUND_WORDS.search(predicate).group(0)!r}. "
+                "Split into separate DoD entries."
+            ))
+
+    return findings
 
 
 def main() -> int:
@@ -157,15 +196,26 @@ def main() -> int:
         print(f"Gate 1 lint: file not found: {args.path}", file=sys.stderr)
         return 2
 
-    errors = lint_file(path)
-    if not errors:
+    findings = lint_file(path)
+    errors = [f for f in findings if f["severity"] == "error"]
+    warnings = [f for f in findings if f["severity"] == "warning"]
+
+    if not findings:
         print(f"Gate 1 lint PASS: {path}")
         return 0
 
-    print(f"Gate 1 lint FAIL: {path}")
-    for error in errors:
-        print(f"- {error}")
-    return 1
+    if warnings:
+        print(f"Gate 1 lint WARNINGS ({len(warnings)}): {path}")
+        for w in warnings:
+            print(f"  [warning] {w['label']} line {w['line']}: {w['message']}")
+
+    if errors:
+        print(f"Gate 1 lint FAIL ({len(errors)} error(s)): {path}")
+        for e in errors:
+            print(f"  [error]   {e['label']} line {e['line']}: {e['message']}")
+        return 1
+
+    return 0
 
 
 if __name__ == "__main__":

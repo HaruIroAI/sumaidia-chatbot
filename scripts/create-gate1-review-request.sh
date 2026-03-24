@@ -5,8 +5,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-DEFAULT_REPO="HaruIroAI/kamiko-independence"
 REPO_ROOT="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null || echo "$PROJECT_ROOT")"
+
+# Source shared repo detection (fallback: --repo > $REPO > git remote > DEFAULT_REPO)
+DETECT_REPO_SCRIPT="$REPO_ROOT/.auto-dev/scripts/detect-repo.sh"
+if [[ -f "$DETECT_REPO_SCRIPT" ]]; then
+  source "$DETECT_REPO_SCRIPT"
+fi
 
 usage() {
   cat <<'EOF'
@@ -90,6 +95,35 @@ repo_relative() {
   printf '%s\n' "$path"
 }
 
+discovery_section() {
+  local execplan_rel="$1"
+  local execplan_abs="$PROJECT_ROOT/$(echo "$execplan_rel" | sed 's|^projects/automated-dev-system/||')"
+  # Try resolve from repo root if the path doesn't exist
+  if [[ ! -f "$execplan_abs" ]]; then
+    execplan_abs="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null)/$execplan_rel"
+  fi
+
+  # Check if Discovery was actually performed (at least one [x] in Discovery table)
+  local discovery_performed="false"
+  if [[ -f "$execplan_abs" ]] && grep -q "## Discovery" "$execplan_abs" 2>/dev/null; then
+    local discovery_table
+    discovery_table=$(sed -n '/^## Discovery/,/^## /{/^## Discovery/d;/^## /d;p;}' "$execplan_abs" | grep -E '^\|.*\|$' | grep -vE '^\|[[:space:]-]+\|[[:space:]-]+\|[[:space:]-]+\|[[:space:]-]+\|$')
+    if echo "$discovery_table" | grep -q '\[x\]'; then
+      discovery_performed="true"
+    fi
+  fi
+
+  echo "## Discovery 成果物"
+  echo ""
+  if [[ "$discovery_performed" == "true" ]]; then
+    echo "$discovery_table"
+    echo ""
+  else
+    echo "Discovery: 未実施（このタスクでは Discovery フェーズは不要と判断）"
+    echo ""
+  fi
+}
+
 build_body() {
   local execplan_rel="$1"
   local round="$2"
@@ -139,6 +173,8 @@ build_body() {
 - [ ] 追加指摘が shared review contract 内に収まっているか
 - [ ] Round $round でも unresolved が残る場合、実装欠陥か contract 欠陥かを切り分けているか
 
+$(discovery_section "$execplan_rel")
+
 ## 参照
 
 - Gate 1 運用ルール: \`$gate1_doc_rel\`
@@ -159,7 +195,7 @@ shift
 ROUND=""
 COMMIT_HASH="$(git -C "$PROJECT_ROOT" rev-parse --short HEAD)"
 ISSUE_NUMBER=""
-REPO="$DEFAULT_REPO"
+REPO="${DETECTED_REPO:-$(_detect_repo 2>/dev/null || echo "HaruIroAI/kamiko-independence")}"
 DRY_RUN="false"
 
 while [[ $# -gt 0 ]]; do
@@ -193,6 +229,31 @@ while [[ $# -gt 0 ]]; do
 done
 
 EXECPLAN_PATH=$(require_file "$EXECPLAN_ARG")
+
+# --- ExecPlan Evidence Preflight (TASK-0037) — runs before metadata extraction ---
+PREFLIGHT_SCRIPT="$REPO_ROOT/.auto-dev/scripts/execplan-preflight.sh"
+if [[ "${EXECPLAN_PREFLIGHT_SKIP:-0}" != "1" ]] && [[ -x "$PREFLIGHT_SCRIPT" ]]; then
+  PREFLIGHT_REPORT_MD=$(mktemp /tmp/execplan-preflight-XXXXXX)
+  PREFLIGHT_REPORT_JSON=$(mktemp /tmp/execplan-preflight-XXXXXX)
+  PREFLIGHT_EXIT=0
+  bash "$PREFLIGHT_SCRIPT" \
+    --execplan "$EXECPLAN_PATH" \
+    --project "$(basename "$PROJECT_ROOT")" \
+    --report-md "$PREFLIGHT_REPORT_MD" \
+    --report-json "$PREFLIGHT_REPORT_JSON" \
+    || PREFLIGHT_EXIT=$?
+  if [[ $PREFLIGHT_EXIT -ne 0 ]]; then
+    echo "" >&2
+    echo "[ERROR] ExecPlan preflight failed — issue creation aborted." >&2
+    echo "ExecPlan: $EXECPLAN_PATH" >&2
+    echo "Report:   $PREFLIGHT_REPORT_MD" >&2
+    echo "" >&2
+    echo "Fix the failing DoDs and re-run this script." >&2
+    exit 2
+  fi
+  rm -f "$PREFLIGHT_REPORT_MD" "$PREFLIGHT_REPORT_JSON"
+fi
+
 EXECPLAN_REL="$(repo_relative "$EXECPLAN_PATH")"
 ROUND="${ROUND:-$(infer_round "$EXECPLAN_PATH")}"
 TASK_ID=$(infer_task_id "$EXECPLAN_PATH")

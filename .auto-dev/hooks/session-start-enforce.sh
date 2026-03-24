@@ -5,8 +5,9 @@
 # Note: Not using set -e to allow graceful handling of missing files
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NOTIFY_SCRIPT="$SCRIPT_DIR/../scripts/notify.sh"
+REPORT_GATE_SCRIPT="$SCRIPT_DIR/../scripts/report-gate.sh"
 
 LOG_DIR=".auto-dev/logs"
 STATE_DIR=".claude/state"
@@ -110,6 +111,14 @@ if command -v jq &>/dev/null; then
   "last_session_summary": null
 }
 EOF
+fi
+
+if [ -x "$REPORT_GATE_SCRIPT" ]; then
+  "$REPORT_GATE_SCRIPT" mark \
+    --project-root "$PROJECT_ROOT" \
+    --state pending \
+    --reason session_start \
+    --source session-start-enforce >/dev/null 2>&1 || true
 fi
 
 # ============================================
