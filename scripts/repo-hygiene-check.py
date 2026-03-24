@@ -79,6 +79,18 @@ def detect_repo_root() -> Path:
     return Path(output)
 
 
+def detect_shared_repo_root(repo_root: Path) -> Path:
+    output = subprocess.check_output(
+        ["git", "-C", str(repo_root), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        text=True,
+        stderr=subprocess.DEVNULL,
+    ).strip()
+    common_dir = Path(output)
+    if common_dir.name == ".git":
+        return common_dir.parent
+    return repo_root
+
+
 def load_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
     if not path.exists():
         return default
@@ -100,14 +112,14 @@ def resolve_config_path(repo_root: Path, raw_path: str | None) -> Path:
     raise FileNotFoundError("repo-hygiene-rules.json")
 
 
-def resolve_followups_path(repo_root: Path, raw_path: str | None) -> Path:
+def resolve_followups_path(shared_repo_root: Path, raw_path: str | None) -> Path:
     if raw_path:
         return Path(raw_path).resolve()
-    return repo_root / DEFAULT_FOLLOWUPS_REL
+    return shared_repo_root / DEFAULT_FOLLOWUPS_REL
 
 
-def resolve_hints_path(repo_root: Path) -> Path:
-    return repo_root / DEFAULT_HINTS_REL
+def resolve_hints_path(shared_repo_root: Path) -> Path:
+    return shared_repo_root / DEFAULT_HINTS_REL
 
 
 def normalize_status_path(raw_path: str) -> str:
@@ -233,13 +245,22 @@ def classify_items(
     return items
 
 
-def build_payload(repo_root: Path, items: list[HygieneItem], followups: list[dict[str, Any]]) -> dict[str, Any]:
+def build_payload(
+    repo_root: Path,
+    shared_repo_root: Path,
+    items: list[HygieneItem],
+    followups: list[dict[str, Any]],
+) -> dict[str, Any]:
     category_counts = Counter(item.category for item in items)
     unresolved = [item for item in items if item.blocking and not item.covered_by_followup]
     non_blocking = [item for item in items if not item.blocking]
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "repo_root": str(repo_root),
+        "shared_repo_root": str(shared_repo_root),
+        "git_context": {
+            "is_linked_worktree": repo_root != shared_repo_root,
+        },
         "summary": {
             "total_items": len(items),
             "unresolved_items": len(unresolved),
@@ -289,19 +310,20 @@ def main() -> int:
 
     try:
         repo_root = detect_repo_root()
+        shared_repo_root = detect_shared_repo_root(repo_root)
         config_path = resolve_config_path(repo_root, args.config)
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
         print(f"Repo hygiene: unable to initialize ({exc})", file=sys.stderr)
         return 2
 
     rules = load_json(config_path, {})
-    followups_path = resolve_followups_path(repo_root, args.followups)
+    followups_path = resolve_followups_path(shared_repo_root, args.followups)
     followups = load_followups(followups_path)
     items = classify_items(repo_root, rules, followups)
-    payload = build_payload(repo_root, items, followups)
+    payload = build_payload(repo_root, shared_repo_root, items, followups)
 
     if args.write_cleanup_hints:
-        write_cleanup_hints(resolve_hints_path(repo_root), payload)
+        write_cleanup_hints(resolve_hints_path(shared_repo_root), payload)
 
     if args.format == "json":
         print(json.dumps(payload, indent=2, ensure_ascii=False))
