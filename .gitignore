@@ -51,6 +51,8 @@ package-lock.json
 .DS_Store
 __pycache__/
 *.pyc
+.env
+.env.production
 .env.local
 .env.*.local
 .wrangler/
@@ -59,5 +61,4 @@ data/nerfstudio/
 .agent/
 .agents/
 # END AUTO-DEV REPO HYGIENE
-
 
