@@ -26,7 +26,8 @@
 - review Issue、再帰的な review round、final approval handoff、read-back は通常作業の必須条件ではない
 - 関連チェックが通った通常変更は、branch / commit / push / PR / merge までAIが進められる
 - 過去の `.auto-dev/`、`codex-review` Issue、handoff記録、`.github/workflows-disabled/` は履歴であり、現行の実行指示ではない
-- 新規契約、production deploy / publish、secret / auth、決済、外部送信、破壊的または不可逆な操作はHuman確認を必要とする
+- production deploy / publish は、実行直前にHumanが対象環境とfull commit SHAを承認する。承認後は担当Agentがguarded deploy / publish、smoke check、read-backを実行し、Humanにコマンドのcopy/pasteやterminal操作を依頼しない。環境またはSHAが変われば再承認を得る
+- 新規契約、secret / auth、決済、外部送信、破壊的または不可逆な操作はHumanが実行する
 
 ## 成果物（参照用）
 
@@ -41,3 +42,4 @@
 3. HR評価システムの残タスク（実データ投入）を ExecPlan 化
 4. 新しい TASK-XXXX を作成してから着手
 
+上記の再開条件はproduction実行者の境界変更によって緩和されない。

@@ -37,7 +37,8 @@
 
 - Claude Code と Codex は固定レーンを持たず、どちらも通常の開発・検証・PR・mergeを行える
 - review Issue、再帰review、handoff、read-backは通常作業の必須条件ではない
-- 新規契約、production deploy / publish、secret / auth、決済、外部送信、破壊的操作だけはHuman確認を必要とする
+- production deploy / publish は、実行直前にHumanが対象環境とfull commit SHAを承認する。承認後は担当Agentがguarded deploy / publish、smoke check、read-backを実行し、Humanにコマンドのcopy/pasteやterminal操作を依頼しない。環境またはSHAが変われば再承認を得る
+- 新規契約、secret / auth、決済、外部送信、破壊的操作はHumanが実行する
 - クローズ案件であることと、再開には新しい書面契約・着手金・ExecPlanが必要という製品固有の境界は維持する
 
 @./.claude/rules/lessons-learned.md
