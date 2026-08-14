@@ -1,13 +1,26 @@
 name: Production Selftest
 
 on:
-  push:
-    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type RUN_PRODUCTION_SELFTEST only after Human approval'
+        required: true
+        type: string
+
+permissions:
+  contents: read
 
 jobs:
   selftest:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
+      - name: Confirm Human-approved production self-test
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: test "$CONFIRMATION" = 'RUN_PRODUCTION_SELFTEST'
+
       - name: Hit production selftest
         run: |
           set -e
