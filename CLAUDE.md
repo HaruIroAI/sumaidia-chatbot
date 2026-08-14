@@ -33,11 +33,11 @@
 - `hr-evaluation-system/` — HR評価システム
 - `docs/` — 技術ドキュメント・ADR
 
-## 自動継続 / 夜間実行
+## Operating Model (Solo Kernel)
 
-- 参照・棚卸し・再開準備の作業では、途中経過を non-blocking telemetry として扱い、ユーザー応答待ちの handoff point にしない
-- 未完了の調査 / docs update / restart prep step が残っている限り stop せずに続行する
-- 夜間実行 / unattended run では、最終完了時または hard blocker 発生時だけ報告する
-- hard blocker は新規契約判断、secret / auth / permission 不足、不可逆な方式分岐、競合する user edits、retry / rollback を使い切った外部障害に限る
+- Claude Code と Codex は固定レーンを持たず、どちらも通常の開発・検証・PR・mergeを行える
+- review Issue、再帰review、handoff、read-backは通常作業の必須条件ではない
+- 新規契約、production deploy / publish、secret / auth、決済、外部送信、破壊的操作だけはHuman確認を必要とする
+- クローズ案件であることと、再開には新しい書面契約・着手金・ExecPlanが必要という製品固有の境界は維持する
 
 @./.claude/rules/lessons-learned.md

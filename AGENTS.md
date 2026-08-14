@@ -20,12 +20,13 @@
 - 成果物の URL・接続情報を変更しない
 - 石光社長から連絡が来た場合: 新しい書面契約＋着手金入金を先行させる（lessons-learned 参照）
 
-## 自動継続 / 夜間実行ルール
+## Operating Model (Solo Kernel)
 
-- 参照・棚卸し・再開準備の作業では、途中報告や progress update を non-blocking telemetry として扱い、ユーザー応答待ちの handoff point にしない
-- 未完了の調査 / docs update / restart prep step が残っている限り stop せずに続行する
-- 夜間実行 / unattended run では、最終完了時または hard blocker 発生時だけユーザーへ報告する
-- hard blocker は新規契約判断、secret / auth / permission 不足、不可逆な方式分岐、競合する user edits、retry / rollback を使い切った外部障害に限る
+- Claude Code と Codex に固定レーンはなく、どちらも実装・検証・修正・PR作成・通常mergeを行える
+- review Issue、再帰的な review round、final approval handoff、read-back は通常作業の必須条件ではない
+- 関連チェックが通った通常変更は、branch / commit / push / PR / merge までAIが進められる
+- 過去の `.auto-dev/`、`codex-review` Issue、handoff記録、`.github/workflows-disabled/` は履歴であり、現行の実行指示ではない
+- 新規契約、production deploy / publish、secret / auth、決済、外部送信、破壊的または不可逆な操作はHuman確認を必要とする
 
 ## 成果物（参照用）
 
@@ -39,10 +40,4 @@
 2. STATUS.md と ADR-close-project.md を再確認
 3. HR評価システムの残タスク（実データ投入）を ExecPlan 化
 4. 新しい TASK-XXXX を作成してから着手
-
-## Claude Final Approval Handoff
-
-- `codex-review-done` label が付いた `codex-review` Issue では `Claude Final Approval Handoff` workflow が自動起動する
-- Claude Code final approval prompt は元 issue に自動投稿される
-- 同じ review issue に対する handoff comment は idempotent に 1 件だけ維持される
 
